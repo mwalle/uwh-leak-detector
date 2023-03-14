@@ -82,7 +82,16 @@ static void print_pressure(char *buf, uint16_t p)
 	uart_puts_P(PSTR("mbar"));
 }
 
-static void print_startup(uint16_t p_turn_on)
+static void print_vbat(char *buf, uint16_t vbat)
+{
+	int millivolt = 110 * 256;
+
+	millivolt /= vbat;
+	uart_puts(itoa(millivolt, buf, 10));
+	uart_puts_P(PSTR("0mV"));
+}
+
+static void print_startup(uint16_t vbat, uint16_t p_turn_on)
 {
 	uint8_t t = bmp581_read_temp();
 	char buf[8];
@@ -93,6 +102,10 @@ static void print_startup(uint16_t p_turn_on)
 
 	uart_puts_P(PSTR("p_turn_on="));
 	print_pressure(buf, p_turn_on);
+	uart_puts_P(PSTR(" "));
+
+	uart_puts_P(PSTR("vbat="));
+	print_vbat(buf, vbat);
 	uart_puts_P(PSTR("\n"));
 }
 
@@ -109,9 +122,28 @@ static void print_status(enum state state, uint16_t p, uint16_t p_alarm)
 	uart_puts_P(PSTR("\n"));
 }
 
+static void adc_init(void)
+{
+	/* Vref = Vcc, input = Vbg */
+	ADMUX = _BV(MUX3) | _BV(MUX2) | _BV(ADLAR);
+	_delay_ms(1);
+	/* enable ADC, 128 kHz clock */
+	ADCSRA = _BV(ADEN) | _BV(ADPS1) | _BV(ADPS0);
+}
+
+static uint8_t vbat_voltage(void)
+{
+	uint16_t val;
+
+	ADCSRA |= _BV(ADSC);
+	loop_until_bit_is_clear(ADCSRA, ADSC);
+	return ADCH;
+}
+
 int main(void)
 {
 	uint16_t p_turn_on, p_alarm, p;
+	uint16_t vbat;
 	enum state state;
 
 	/* clear watchdog */
@@ -119,11 +151,14 @@ int main(void)
 	WDTCR |= _BV(WDCE) | _BV(WDE);
 	WDTCR = 0;
 
+	adc_init();
 	leds_init();
 	uart_init();
 	bmp581_init();
 
 	sei();
+
+	vbat = vbat_voltage();
 
 	leds_pressure_ok();
 	_delay_ms(1000);
@@ -138,7 +173,7 @@ int main(void)
 	p_alarm = 0;
 
 	if (DEBUG)
-		print_startup(p_turn_on);
+		print_startup(vbat, p_turn_on);
 
 	while (true) {
 		p = bmp581_read_pressure();
