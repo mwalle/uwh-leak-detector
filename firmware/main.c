@@ -404,8 +404,8 @@ int main(void)
 	uart_init();
 	bmp581_init();
 
-	/* XXX */
-	PORTB |= _BV(PB1);
+	/* disable unused blocks */
+	ACSR |= _BV(ACD);
 
 	selftest();
 
