@@ -138,14 +138,6 @@ static void update_led(void)
 		return;
 
 	/* enable or disable output driver to consume power */
-	if (__led_state) {
-		DDRB |= _BV(LED_GREEN);
-		DDRB |= _BV(LED_RED);
-	} else {
-		DDRB &= ~_BV(LED_GREEN);
-		DDRB &= ~_BV(LED_RED);
-	}
-
 	switch (__led_state) {
 	case LED_OFF:
 		PORTB |= _BV(LED_GREEN);
@@ -234,8 +226,8 @@ static void wdt_init(void)
 
 static void power_down(void)
 {
-	update_led();
-
+	PORTB |= _BV(PB3);
+	PORTB |= _BV(PB4);
 
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
@@ -347,12 +339,25 @@ static void trigger_state_machine(struct context *ctx)
 	ctx->state = state;
 }
 
+void led_init(void)
+{
+	PORTB |= _BV(PB3);
+	DDRB |= _BV(PB3);
+	PORTB |= _BV(PB4);
+	DDRB |= _BV(PB4);
+}
+
 static void selftest(void)
 {
-	set_led(LED_ERROR);
+	if (__flags & F_DEBUG)
+		return;
+
+	PORTB &= ~_BV(PB3);
 	_delay_ms(500);
-	set_led(LED_PRESSURE_OK);
+	PORTB |= _BV(PB3);
+	PORTB &= ~_BV(PB4);
 	_delay_ms(500);
+	PORTB |= _BV(PB4);
 	buzzer_on();
 	_delay_ms(200);
 	buzzer_off();
@@ -376,6 +381,7 @@ int main(void)
 		__flags = F_DEBUG;
 	nvflags = 1;
 
+	led_init();
 	adc_init();
 	buzzer_init();
 	uart_init();
