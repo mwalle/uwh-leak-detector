@@ -154,39 +154,6 @@ void bmp581_init(void)
 	bmp581_write_reg(REG_ODR_CONFIG, ODR_STANDBY_MODE);
 }
 
-void bmp581_configure_oor(uint16_t p, uint8_t window)
-{
-	bmp581_write_reg(REG_OOR_THR_P_LSB, (p << 2));
-	bmp581_write_reg(REG_OOR_THR_P_MSB, (p >> 6));
-	if (p & 0x4000)
-		bmp581_write_reg(REG_OOR_CONFIG, OOR_CNT_LIM_3 | OOR_THR_BIT16);
-	else
-		bmp581_write_reg(REG_OOR_CONFIG, OOR_CNT_LIM_3);
-}
-
-void bmp581_enable_oor_mode(void)
-{
-	/* enable oor pressure interrupt */
-	//bmp581_write_reg(REG_INT_SOURCE, INT_SRC_OOR_P_EN | INT_SRC_DRDY);
-	bmp581_write_reg(REG_INT_SOURCE, INT_SRC_DRDY);
-
-	/* open-drain, interrupt pulse, enable interrupt */
-	bmp581_write_reg(REG_INT_CONFIG, INT_OD | INT_EN | INT_DRV(3));
-	//bmp581_write_reg(REG_INT_CONFIG, INT_POL | INT_EN | INT_DRV(3));
-
-	/* normal mode, one samples every two seconds */
-	bmp581_write_reg(REG_ODR_CONFIG, ODR_NORMAL_MODE | ODR_SEL_2_HZ);
-}
-
-void bmp581_disable_oor_mode(void)
-{
-	/* open-drain, disable interrupt */
-	bmp581_write_reg(REG_INT_CONFIG, INT_OD | INT_DRV(3));
-
-	/* standby mode */
-	bmp581_write_reg(REG_ODR_CONFIG, ODR_STANDBY_MODE);
-}
-
 uint16_t bmp581_read_pressure(void)
 {
 	uint8_t buf[3];
@@ -209,18 +176,14 @@ uint8_t bmp581_read_temp(void)
 	return buf[0];
 }
 
-void bmp581_clear_int_status(void)
+void bmp581_start_one_shot(void)
 {
-	uint8_t buf;
-
-	buf = REG_TEMP_DATA_MSB;
-
-	twi_transfer(BMP581_ADDR, &buf, 1, &buf, 1);
+	bmp581_write_reg(REG_ODR_CONFIG, ODR_FORCED_MODE);
 }
 
 uint16_t bmp581_one_shot(void)
 {
-	bmp581_write_reg(REG_ODR_CONFIG, ODR_FORCED_MODE);
+	bmp581_start_one_shot();
 	_delay_ms(5);
 	return bmp581_read_pressure();
 }

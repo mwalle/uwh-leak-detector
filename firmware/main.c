@@ -161,11 +161,6 @@ static void set_led(uint8_t led_state)
 	}
 }
 
-ISR(PCINT0_vect)
-{
-	/* wake up or new data available */
-}
-
 ISR(WDT_vect)
 {
 	__ticks++;
@@ -206,33 +201,11 @@ static void wdt_init(void)
 
 static void power_down(void)
 {
-	/* disable watchdog */
-	WDTCR &= ~_BV(WDIE);
-
 	update_led();
 
-	/* enable pin change interrupt */
-	PORTB |= _BV(PB1);
-	GIFR = 0;
-	PCMSK |= _BV(PCINT1);
-	GIMSK = _BV(PCIE);
 
-	//bmp581_clear_int_status();
-	bmp581_enable_oor_mode();
-
-	/* power down */
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
-
-	bmp581_disable_oor_mode();
-
-	/* disable pin changeinterrupt */
-	GIMSK = 0;
-	PCMSK = 0;
-	PORTB &= ~_BV(PB1);
-
-	/* enable watchdog */
-	WDTCR |= _BV(WDIE);
 }
 
 static void idle_mode(void)
@@ -407,8 +380,6 @@ int main(void)
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 	ctx.p_alarm = 0;
 	ctx.flags = 0;
-
-	bmp581_configure_oor(ctx.p, 255);
 
 	ctx.state = POWERED_DOWN;
 	while (true) {
