@@ -16,8 +16,8 @@
 static volatile uint16_t tx_char;
 static volatile uint8_t tx_cnt;
 
-#define BAUD 2400
-#define TIMER0_BIT_CNT ((uint8_t)((F_CPU / 8 / BAUD) + 0.5))
+#define BAUD 9600
+#define TIMER0_BIT_CNT ((uint8_t)((F_CPU / BAUD) + 0.5))
 
 void uart_init(void) {
 	/* turn output on */
@@ -41,7 +41,7 @@ void uart_putc(const char c)
 	tx_cnt = 13;
 
 	/* now start the timer, everything else will be interrupt driven */
-	TCCR0B = _BV(CS01); /* start Timer0, clk/8 prescaler */
+	TCCR0B = _BV(CS00); /* start Timer0, no prescaler */
 }
 
 void uart_puts(const char *s)
