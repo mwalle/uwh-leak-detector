@@ -9,8 +9,8 @@ BAUD = 115200
 F_CPU = 1000000
 
 OBJECTS = $(SOURCES:.c=.o)
-CFLAGS = -g -Os -Wall -DF_CPU=$(F_CPU) $(EXTRA_CFLAGS)
-LDFLAGS =
+CFLAGS = -g -Os -Wall -ffunction-sections -DF_CPU=$(F_CPU) $(EXTRA_CFLAGS)
+LDFLAGS = -Wl,--gc-sections
 
 all: hex eeprom
 
