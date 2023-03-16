@@ -419,15 +419,18 @@ int main(void)
 		/* Trigger the pressure measurment while we sleep */
 		bmp581_start_one_shot();
 
+		/*
+		 * This will either return on a watchdog interrupt, which means
+		 * the device slept for 250ms or on any other interrupt, if the
+		 * device is in idle mode. In the latter case, go back to idle
+		 * mode until ticks has increased, to make sure, the main loop
+		 * is only run once every tick.
+		 */
 		if (ctx.state == POWERED_DOWN)
 			power_down();
 		else
-retry:
-			idle_mode();
-
-		/* if ticks didn't advance, go back to sleep */
-		if (get_ticks() == ctx.ticks)
-			goto retry;
+			while (get_ticks() == ctx.ticks)
+				idle_mode();
 	};
 
 	return 0;
