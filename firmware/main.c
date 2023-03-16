@@ -34,13 +34,6 @@ static volatile uint16_t __ticks;
 
 enum state {
 	/*
-	 * Device is powered-down, all clocks are turned off. Wake-up source is
-	 * a pin-change interrupt which is triggered by the pressure sensor.
-	 * State will always transition to IDLE.
-	 */
-	POWERED_DOWN,
-
-	/*
 	 * Device was woken up by the pressure sensor and is now constantly
 	 * sampling the pressure. On device reset the current pressure is saved
 	 * as the "normal" value. There is a window around this normal value
@@ -50,6 +43,14 @@ enum state {
 	 * threshold is reached though, the state transition to PRESSURE_OK.
 	 */
 	IDLE,
+
+	/*
+	 * Device is powered-down, all clocks are turned off. Wake-up source is
+	 * the watchdog interrupt. The watchdog interval is set to 2s to consume
+	 * power. If the pressure is below the on-off threshold, the state will
+	 * transition to to IDLE.
+	 */
+	POWERED_DOWN,
 
 	/*
 	 * Device constantly measures the pressure. Pressure is only allowed to
@@ -81,6 +82,7 @@ enum led_state {
 struct context {
 	uint16_t ticks;
 	uint16_t p;
+	uint16_t p_idle;
 	uint16_t p_on_off;
 	uint16_t p_alarm;
 	uint16_t vbat;
@@ -208,8 +210,19 @@ static void zero_ticks(void)
 	}
 }
 
-#define IDLE_TIMEOUT (10 * 4)
+#define IDLE_TIMEOUT (60 * 4)
 
+static void wdt_power_down_mode()
+{
+	/* set watchdog period to 2s */
+	WDTCR = _BV(WDIE) | _BV(WDP2) | _BV(WDP1) | _BV(WDP0);
+}
+
+static void wdt_normal_mode()
+{
+	/* enable interrupt and set period to 250ms */
+	WDTCR = _BV(WDIE) | _BV(WDP2);
+}
 
 static void wdt_init(void)
 {
@@ -220,8 +233,7 @@ static void wdt_init(void)
 	 */
 	wdt_disable();
 
-	/* enable interrupt and set period to 250ms */
-	WDTCR = _BV(WDIE) | _BV(WDP2);
+	wdt_normal_mode();
 }
 
 static void power_down(void)
@@ -243,6 +255,7 @@ static void idle_mode(void)
 #define MBAR(x)		((x) * 100 >> 2)
 /* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
 #define P_HYST_ALARM	MBAR(10)
+#define P_HYST_IDLE	MBAR(30)
 #define P_HYST_ON_OFF	MBAR(100)
 
 static void print_vbat(uint16_t vbat, char *buf)
@@ -304,8 +317,11 @@ static void trigger_state_machine(struct context *ctx)
 	switch (ctx->state) {
 	case POWERED_DOWN:
 		zero_ticks();
-		set_led(LED_IDLE);
-		state = IDLE;
+		if (ctx->p < ctx->p_idle) {
+			set_led(LED_IDLE);
+			wdt_normal_mode();
+			state = IDLE;
+		}
 		break;
 	case IDLE:
 		if (ctx->p < ctx->p_on_off) {
@@ -314,6 +330,7 @@ static void trigger_state_machine(struct context *ctx)
 			state = PRESSURE_OK;
 		} else if (ctx->ticks >= IDLE_TIMEOUT) {
 			set_led(LED_OFF);
+			wdt_power_down_mode();
 			state = POWERED_DOWN;
 		}
 		break;
@@ -367,7 +384,7 @@ static volatile uint8_t nvflags __attribute__ ((section (".noinit")));
 
 int main(void)
 {
-	struct context ctx;
+	struct context ctx = { 0 };
 	uint8_t mcusr;
 
 	mcusr = MCUSR;
@@ -390,18 +407,16 @@ int main(void)
 	/* XXX */
 	PORTB |= _BV(PB1);
 
-	sei();
-
 	selftest();
 
 	nvflags = 0;
+	__led_state = LED_IDLE;
+	sei();
 
 	ctx.p = bmp581_one_shot();
+	ctx.p_idle = ctx.p - P_HYST_IDLE;
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
-	ctx.p_alarm = 0;
-	ctx.flags = 0;
 
-	ctx.state = POWERED_DOWN;
 	while (true) {
 		ctx.p = bmp581_one_shot();
 		ctx.vbat = vbat_voltage();
