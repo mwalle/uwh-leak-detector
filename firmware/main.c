@@ -407,7 +407,7 @@ int main(void)
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 
 	while (true) {
-		ctx.p = bmp581_one_shot();
+		ctx.p = bmp581_read_pressure();
 		ctx.vbat = vbat_voltage();
 		ctx.ticks = get_ticks();
 
@@ -415,6 +415,9 @@ int main(void)
 
 		if ((__flags & F_DEBUG) && !(ctx.ticks & 0x3))
 			print_status(&ctx);
+
+		/* Trigger the pressure measurment while we sleep */
+		bmp581_start_one_shot();
 
 		if (ctx.state == POWERED_DOWN)
 			power_down();
