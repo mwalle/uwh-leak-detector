@@ -304,14 +304,17 @@ static void adc_init(void)
 	/* Vref = Vcc, input = Vbg */
 	ADMUX = _BV(MUX3) | _BV(MUX2) | _BV(ADLAR);
 	_delay_ms(1);
-	/* enable ADC, 128 kHz clock */
-	ADCSRA = _BV(ADEN) | _BV(ADPS1) | _BV(ADPS0);
+	/* 128 kHz clock */
+	ADCSRA = _BV(ADPS1) | _BV(ADPS0);
 }
 
 static uint8_t vbat_voltage(void)
 {
+	ADCSRA |= _BV(ADEN);
+	_delay_ms(1);
 	ADCSRA |= _BV(ADSC);
 	loop_until_bit_is_clear(ADCSRA, ADSC);
+	ADCSRA &= ~_BV(ADEN);
 
 	return ADCH;
 }
