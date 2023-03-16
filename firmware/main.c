@@ -369,23 +369,50 @@ static void selftest(void)
 	buzzer_off();
 }
 
-static volatile uint8_t nvflags __attribute__ ((section (".noinit")));
+static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
+
+static const uint16_t demo_values[] PROGMEM = {
+	MBAR(985), MBAR(950), MBAR(900), MBAR(900), MBAR(850), MBAR(800),
+	MBAR(800), MBAR(800), MBAR(810), MBAR(820), MBAR(820), MBAR(985),
+};
+
+static uint16_t demo_read_pressure(void)
+{
+	static uint8_t cnt = 0;
+	uint16_t ticks = get_ticks();
+	uint16_t ret;
+
+	ret = pgm_read_word(&demo_values[cnt]);
+	if (!(ticks & 0x7) && (cnt < sizeof(demo_values)/sizeof(demo_values[0]) - 1))
+		cnt++;
+
+	return ret;
+}
 
 int main(void)
 {
 	struct context ctx = { 0 };
-	uint8_t mcusr;
 
-	mcusr = MCUSR;
+	if (MCUSR & _BV(PORF))
+		rstcnt = 0;
 	MCUSR = 0;
 	wdt_init();
 
-	if (mcusr & _BV(PORF))
-		nvflags = 0;
-
-	if (nvflags)
+	switch (++rstcnt) {
+	case 3:
 		__flags = F_DEBUG;
-	nvflags = 1;
+		break;
+	case 4:
+		__flags = F_DEMO;
+		break;
+	case 5:
+		__flags = F_DEMO | F_DEBUG;
+		break;
+	}
+
+	/* give the user some time to reset again */
+	_delay_ms(400);
+	rstcnt = 0;
 
 	led_init();
 	adc_init();
@@ -398,18 +425,23 @@ int main(void)
 
 	selftest();
 
-	nvflags = 0;
 	__led_state = LED_IDLE;
 	sei();
 
-	ctx.p = bmp581_one_shot();
+	if (__flags & F_DEMO)
+		ctx.p = demo_read_pressure();
+	else
+		ctx.p = bmp581_one_shot();
 	ctx.p_idle = ctx.p - P_HYST_IDLE;
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 
 	while (true) {
-		ctx.p = bmp581_read_pressure();
-		ctx.vbat = vbat_voltage();
 		ctx.ticks = get_ticks();
+		if (__flags & F_DEMO)
+			ctx.p = demo_read_pressure();
+		else
+			ctx.p = bmp581_read_pressure();
+		ctx.vbat = vbat_voltage();
 
 		trigger_state_machine(&ctx);
 
