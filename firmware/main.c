@@ -252,42 +252,31 @@ static void idle_mode(void)
 }
 
 #define TO_MBAR(p)	(p / (100 / 4))
-#define MBAR(x)		((x) * 100 >> 2)
+#define MBAR(x)		((uint32_t)(x) * 100 >> 2)
 /* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
 #define P_HYST_ALARM	MBAR(10)
 #define P_HYST_IDLE	MBAR(30)
 #define P_HYST_ON_OFF	MBAR(100)
 
-static void print_vbat(uint16_t vbat, char *buf)
-{
-	int millivolt = 110 * 256;
-
-	millivolt /= vbat;
-	uart_puts(itoa(millivolt, buf, 10));
-	uart_puts_P(PSTR("0mV"));
-}
-
 static void print_status(struct context *ctx)
 {
 	char buf[8];
 
-	uart_puts_P(PSTR("T="));
-	uart_puts(itoa(get_ticks(), buf, 10));
-	uart_puts_P(PSTR(" S="));
+	uart_puts_P(PSTR("t"));
+	uart_puts(itoa(ctx->ticks, buf, 10));
+	uart_puts_P(PSTR(" f"));
+	uart_puts(itoa(ctx->flags, buf, 10));
+	uart_puts_P(PSTR(" s"));
 	uart_puts(itoa(ctx->state, buf, 10));
-	uart_puts_P(PSTR(" F="));
-	uart_puts(itoa(ctx->flags, buf, 16));
-	uart_puts_P(PSTR(" p="));
+	uart_puts_P(PSTR(" p"));
 	uart_puts(itoa(TO_MBAR(ctx->p), buf, 10));
-	uart_puts_P(PSTR(" p_alarm="));
+	uart_puts_P(PSTR(" a"));
 	uart_puts(itoa(TO_MBAR(ctx->p_alarm), buf, 10));
-	uart_puts_P(PSTR(" "));
-	uart_puts_P(PSTR("p_on_off="));
+	uart_puts_P(PSTR(" o"));
 	uart_puts(itoa(TO_MBAR(ctx->p_on_off), buf, 10));
-	uart_puts_P(PSTR(" "));
-	uart_puts_P(PSTR("vbat="));
-	print_vbat(ctx->vbat, buf);
-	uart_puts_P(PSTR("\n"));
+	uart_puts_P(PSTR(" v"));
+	uart_puts(itoa(110 * 256 / ctx->vbat, buf, 10));
+	uart_puts_P(PSTR("0\n"));
 }
 
 static void adc_init(void)
