@@ -93,6 +93,38 @@ struct context {
 static volatile uint8_t __led_state;
 static volatile uint8_t __flags;
 #define F_DEBUG (1 << 0)
+#define F_DEMO (1 << 1)
+
+static void buzzer_init(void)
+{
+	/* PWM mode, output active low, prescaler to 8 */
+	TCCR0A = _BV(WGM01) | _BV(WGM00) | _BV(COM0B1);
+	TCCR0B = _BV(WGM02) | _BV(CS01);
+	OCR0A = (F_CPU / 8 / 2000);
+	OCR0B = (F_CPU / 8 / 2000 / 2);
+}
+
+static void buzzer_on(void)
+{
+	TCCR0B |= _BV(CS01);
+	DDRB |= _BV(PB1);
+}
+
+static void buzzer_off(void)
+{
+	TCCR0B &= ~_BV(CS01);
+	DDRB &= ~_BV(PB1);
+}
+
+static void update_buzzer(void)
+{
+	return;
+
+	if (__ticks & 0x2)
+		buzzer_on();
+	else
+		buzzer_off();
+}
 
 /* Update the LEDs, called from ISR. */
 static void update_led(void)
@@ -164,6 +196,7 @@ static void set_led(uint8_t led_state)
 ISR(WDT_vect)
 {
 	__ticks++;
+	update_buzzer();
 	update_led();
 }
 
@@ -212,26 +245,6 @@ static void idle_mode(void)
 {
 	set_sleep_mode(SLEEP_MODE_IDLE);
 	sleep_mode();
-}
-
-static void buzzer_on(void)
-{
-	/*
-	 * The system clock is 1 MHz, use the 4096 prescaler and a counter
-	 * value of 244.
-	 */
-
-	/* PWM mode, output active low, prescaler to 16 */
-	TCCR1 = _BV(PWM1A) | _BV(COM1A1) | _BV(CS12) | _BV(CS10);
-	OCR1A = (F_CPU / 16 / 2000 / 2);
-	OCR1C = (F_CPU / 16 / 2000);
-	DDRB |= _BV(PB1);
-}
-
-static void buzzer_off(void)
-{
-	TCCR1 = 0;
-	DDRB &= ~_BV(PB1);
 }
 
 #define TO_MBAR(p)	(p / (100 / 4))
@@ -364,6 +377,7 @@ int main(void)
 	nvflags = 1;
 
 	adc_init();
+	buzzer_init();
 	uart_init();
 	bmp581_init();
 
