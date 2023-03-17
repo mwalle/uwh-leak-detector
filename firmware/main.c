@@ -27,14 +27,12 @@
 /* one tick is 250ms */
 #define HZ 4
 
-#define TO_MBAR(p)		((p) / (100 / 4))
-#define MBAR(x)			((uint32_t)(x) * 100 >> 2)
 #define TO_CENTIVOLTS(v)	(110 * 256 / (v))
 #define MILLIVOLTS(v)		((uint32_t)1100 * 256 / (v))
 /* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
-#define P_HYST_ALARM	MBAR(10)
-#define P_HYST_IDLE	MBAR(30)
-#define P_HYST_ON_OFF	MBAR(100)
+#define P_HYST_ALARM	10
+#define P_HYST_IDLE	30
+#define P_HYST_ON_OFF	100
 
 #define IDLE_TIMEOUT	(60 * HZ)
 #define VBAT_LOW	MILLIVOLTS(2900)
@@ -250,11 +248,11 @@ static void print_status(struct context *ctx)
 	uart_puts_P(PSTR(" f"));
 	uart_puts(itoa(ctx->flags, buf, 10));
 	uart_puts_P(PSTR(" p"));
-	uart_puts(itoa(TO_MBAR(ctx->p), buf, 10));
+	uart_puts(itoa(ctx->p, buf, 10));
 	uart_puts_P(PSTR(" a"));
-	uart_puts(itoa(TO_MBAR(ctx->p_alarm), buf, 10));
+	uart_puts(itoa(ctx->p_alarm, buf, 10));
 	uart_puts_P(PSTR(" o"));
-	uart_puts(itoa(TO_MBAR(ctx->p_on_off), buf, 10));
+	uart_puts(itoa(ctx->p_on_off, buf, 10));
 	uart_puts_P(PSTR(" v"));
 	uart_puts(itoa(TO_CENTIVOLTS(ctx->vbat), buf, 10));
 	uart_puts_P(PSTR("0\n"));

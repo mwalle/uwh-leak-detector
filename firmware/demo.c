@@ -9,11 +9,8 @@
 
 #include "sensor.h"
 
-#define MBAR(x)			((uint32_t)(x) * 100 >> 2)
-
 static const uint16_t demo_values[] PROGMEM = {
-	MBAR(985), MBAR(850), MBAR(800), MBAR(805),
-	MBAR(820), MBAR(820), MBAR(985), MBAR(1000),
+	985, 850, 800, 805, 820, 820, 985, 1000,
 };
 
 static uint16_t demo_read_pressure(void)

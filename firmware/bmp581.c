@@ -164,7 +164,7 @@ static uint16_t bmp581_read_pressure(void)
 
 	twi_transfer(BMP581_ADDR, buf, 1, buf, sizeof(buf));
 
-	return buf[2] << 8 | buf[1];
+	return (buf[2] << 8 | buf[1]) / (100 / 4);
 }
 
 static uint8_t bmp581_read_temp(void)
