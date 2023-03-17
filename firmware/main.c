@@ -24,7 +24,17 @@
 #include "buzzer.h"
 #include "sensor.h"
 
-#define DEBUG 1
+/* one tick is 250ms */
+#define HZ 4
+
+#define TO_MBAR(p)		((p) / (100 / 4))
+#define MBAR(x)			((uint32_t)(x) * 100 >> 2)
+/* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
+#define P_HYST_ALARM	MBAR(10)
+#define P_HYST_IDLE	MBAR(30)
+#define P_HYST_ON_OFF	MBAR(100)
+
+#define IDLE_TIMEOUT	(60 * HZ)
 
 /*
  * ticks will count the time since the last power-down (or start-up).
@@ -179,8 +189,6 @@ static void zero_ticks(void)
 	}
 }
 
-#define IDLE_TIMEOUT (60 * 4)
-
 static void wdt_power_down_mode()
 {
 	/* set watchdog period to 2s */
@@ -219,13 +227,6 @@ static void idle_mode(void)
 	set_sleep_mode(SLEEP_MODE_IDLE);
 	sleep_mode();
 }
-
-#define TO_MBAR(p)	(p / (100 / 4))
-#define MBAR(x)		((uint32_t)(x) * 100 >> 2)
-/* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
-#define P_HYST_ALARM	MBAR(10)
-#define P_HYST_IDLE	MBAR(30)
-#define P_HYST_ON_OFF	MBAR(100)
 
 static void print_status(struct context *ctx)
 {
