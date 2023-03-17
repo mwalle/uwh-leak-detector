@@ -240,12 +240,15 @@ static void print_status(struct context *ctx)
 {
 	char buf[8];
 
+	if (!(__flags & F_DEBUG))
+		return;
+
 	uart_puts_P(PSTR("t"));
 	uart_puts(itoa(ctx->ticks, buf, 10));
-	uart_puts_P(PSTR(" f"));
-	uart_puts(itoa(ctx->flags, buf, 10));
 	uart_puts_P(PSTR(" s"));
 	uart_puts(itoa(ctx->state, buf, 10));
+	uart_puts_P(PSTR(" f"));
+	uart_puts(itoa(ctx->flags, buf, 10));
 	uart_puts_P(PSTR(" p"));
 	uart_puts(itoa(TO_MBAR(ctx->p), buf, 10));
 	uart_puts_P(PSTR(" a"));
@@ -437,7 +440,7 @@ int main(void)
 
 		trigger_state_machine(&ctx);
 
-		if ((__flags & F_DEBUG) && !(ctx.ticks & 0x3))
+		if ((ctx.ticks & 0x3) == 0)
 			print_status(&ctx);
 
 		/* Trigger the pressure measurment while we sleep */
