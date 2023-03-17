@@ -5,27 +5,27 @@
  */
 
 #include <stdbool.h>
-#include <string.h>
-#include <avr/io.h>
-#include <avr/pgmspace.h>
+#include <stdlib.h>
 #include <util/delay.h>
 
-#include "bmp581.h"
+#include "sensor.h"
 #include "twi.h"
 
 #define BMP581_ADDR 0x46
+#define BMP581_CHIP_ID 0x50
 
+#define REG_CHIP_ID		0x01
 #define REG_INT_CONFIG		0x14
-#define  INT_MODE		_BV(0)
-#define  INT_POL		_BV(1)
-#define  INT_OD			_BV(2)
-#define  INT_EN			_BV(3)
+#define  INT_MODE		(1 << 0)
+#define  INT_POL		(1 << 1)
+#define  INT_OD			(1 << 2)
+#define  INT_EN			(1 << 3)
 #define  INT_DRV(x)		((x) << 4)
 #define REG_INT_SOURCE		0x15
-#define  INT_SRC_DRDY		_BV(0)
-#define  INT_SRC_FIFO_FULL	_BV(1)
-#define  INT_SRC_FIFO_THS	_BV(2)
-#define  INT_SRC_OOR_P_EN	_BV(3)
+#define  INT_SRC_DRDY		(1 << 0)
+#define  INT_SRC_FIFO_FULL	(1 << 1)
+#define  INT_SRC_FIFO_THS	(1 << 2)
+#define  INT_SRC_OOR_P_EN	(1 << 3)
 
 #define REG_TEMP_DATA_XLSB	0x1d
 #define REG_TEMP_DATA_LSB	0x1e
@@ -35,7 +35,9 @@
 #define REG_PRESS_DATA_MSB	0x22
 
 #define REG_INT_STATUS		0x27
-#define  INT_STATUS_DRDY	_BV(0)
+#define  INT_STATUS_DRDY	(1 << 0)
+#define REG_STATUS		0x28
+#define  STATUS_CRACK_PASS	(1 << 7)
 #define REG_DSP_CONFIG		0x30
 
 #define REG_DSP_IIR_CONFIG	0x31
@@ -60,13 +62,13 @@
 #define REG_OOR_THR_P_MSB	0x33
 #define REG_OOR_RANGE		0x34
 #define REG_OOR_CONFIG		0x35
-#define  OOR_THR_BIT16		_BV(0)
+#define  OOR_THR_BIT16		(1 << 0)
 #define  OOR_CNT_LIM_1		(0 << 6)
 #define  OOR_CNT_LIM_3		(1 << 6)
 #define  OOR_CNT_LIM_7		(2 << 6)
 #define  OOR_CNT_LIM_15		(3 << 6)
 #define REG_OSR_CONFIG		0x36
-#define  OSR_PRESS_EN		_BV(6)
+#define  OSR_PRESS_EN		(1 << 6)
 #define  OSR_T_OVR_SAMPLE_1X	(0 << 0)
 #define  OSR_T_OVR_SAMPLE_2X	(1 << 0)
 #define  OSR_T_OVR_SAMPLE_4X	(2 << 0)
@@ -121,7 +123,7 @@
 #define  ODR_SEL_0_5_HZ		(29 << 2)
 #define  ODR_SEL_0_25_HZ	(30 << 2)
 #define  ODR_SEL_0_125_HZ	(31 << 2)
-#define  ODR_DEEP_DIS		_BV(7)
+#define  ODR_DEEP_DIS		(1 << 7)
 #define REG_CMD 0x7e
 #define  CMD_SOFT_RESET 0xb6
 
@@ -141,7 +143,7 @@ static void bmp581_soft_reset(void)
 	_delay_ms(2);
 }
 
-void bmp581_init(void)
+static void bmp581_init(void)
 {
 	bmp581_soft_reset();
 
@@ -154,7 +156,7 @@ void bmp581_init(void)
 	bmp581_write_reg(REG_ODR_CONFIG, ODR_STANDBY_MODE);
 }
 
-uint16_t bmp581_read_pressure(void)
+static uint16_t bmp581_read_pressure(void)
 {
 	uint8_t buf[3];
 
@@ -165,25 +167,42 @@ uint16_t bmp581_read_pressure(void)
 	return buf[2] << 8 | buf[1];
 }
 
-uint8_t bmp581_read_temp(void)
+static uint8_t bmp581_read_temp(void)
 {
-	uint8_t buf[1];
+	uint8_t buf;
 
-	buf[0] = REG_TEMP_DATA_MSB;
+	buf = REG_TEMP_DATA_MSB;
+	twi_transfer(BMP581_ADDR, &buf, 1, &buf, sizeof(buf));
 
-	twi_transfer(BMP581_ADDR, buf, 1, buf, sizeof(buf));
-
-	return buf[0];
+	return buf;
 }
 
-void bmp581_start_one_shot(void)
+static void bmp581_start_measurement(void)
 {
 	bmp581_write_reg(REG_ODR_CONFIG, ODR_FORCED_MODE);
 }
 
-uint16_t bmp581_one_shot(void)
+static uint16_t bmp581_one_shot(void)
 {
-	bmp581_start_one_shot();
+	bmp581_start_measurement();
 	_delay_ms(5);
 	return bmp581_read_pressure();
 }
+
+static bool bmp581_is_present(void)
+{
+	uint8_t buf;
+
+	buf = REG_CHIP_ID;
+	twi_transfer(BMP581_ADDR, &buf, 1, &buf, sizeof(buf));
+
+	return buf == BMP581_CHIP_ID;
+}
+
+struct sensor_driver bmp581_driver = {
+	.is_present = bmp581_is_present,
+	.init = bmp581_init,
+	.one_shot = bmp581_one_shot,
+	.start_measurement = bmp581_start_measurement,
+	.read_pressure = bmp581_read_pressure,
+};

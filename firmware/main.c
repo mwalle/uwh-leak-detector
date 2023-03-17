@@ -21,7 +21,7 @@
 
 #include "twi.h"
 #include "swuart.h"
-#include "bmp581.h"
+#include "sensor.h"
 
 #define DEBUG 1
 
@@ -369,28 +369,20 @@ static void selftest(void)
 	buzzer_off();
 }
 
-static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
-
-static const uint16_t demo_values[] PROGMEM = {
-	MBAR(985), MBAR(950), MBAR(900), MBAR(900), MBAR(850), MBAR(800),
-	MBAR(800), MBAR(800), MBAR(810), MBAR(820), MBAR(820), MBAR(985),
-};
-
-static uint16_t demo_read_pressure(void)
+static void error(void)
 {
-	static uint8_t cnt = 0;
-	uint16_t ticks = get_ticks();
-	uint16_t ret;
-
-	ret = pgm_read_word(&demo_values[cnt]);
-	if (!(ticks & 0x7) && (cnt < sizeof(demo_values)/sizeof(demo_values[0]) - 1))
-		cnt++;
-
-	return ret;
+	cli();
+	set_led(LED_ERROR);
+	update_led();
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sleep_mode();
 }
+
+static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 
 int main(void)
 {
+	struct sensor_driver *driver = NULL;
 	struct context ctx = { 0 };
 
 	if (MCUSR & _BV(PORF))
@@ -418,7 +410,16 @@ int main(void)
 	adc_init();
 	buzzer_init();
 	uart_init();
-	bmp581_init();
+
+	if (__flags & F_DEMO)
+		driver = &demo_driver;
+	else if (bmp581_driver.is_present())
+		driver = &bmp581_driver;
+
+	if (!driver)
+		error();
+
+	driver->init();
 
 	/* disable unused blocks */
 	ACSR |= _BV(ACD);
@@ -428,19 +429,14 @@ int main(void)
 	__led_state = LED_IDLE;
 	sei();
 
-	if (__flags & F_DEMO)
-		ctx.p = demo_read_pressure();
-	else
-		ctx.p = bmp581_one_shot();
+	ctx.p = driver->one_shot();
 	ctx.p_idle = ctx.p - P_HYST_IDLE;
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 
 	while (true) {
 		ctx.ticks = get_ticks();
-		if (__flags & F_DEMO)
-			ctx.p = demo_read_pressure();
-		else
-			ctx.p = bmp581_read_pressure();
+		ctx.p = driver->read_pressure();
+
 		ctx.vbat = vbat_voltage();
 
 		trigger_state_machine(&ctx);
@@ -449,7 +445,7 @@ int main(void)
 			print_status(&ctx);
 
 		/* Trigger the pressure measurment while we sleep */
-		bmp581_start_one_shot();
+		driver->start_measurement();
 
 		/*
 		 * This will either return on a watchdog interrupt, which means

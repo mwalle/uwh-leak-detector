@@ -1,7 +1,7 @@
 TARGET = leak-detector
 MCU = attiny45
 PMCU = t45
-SOURCES = main.c twi.c swuart.c bmp581.c
+SOURCES = main.c twi.c swuart.c buzzer.c bmp581.c demo.c
 
 PROGRAMMER = buspirate
 PORT = /dev/ttyUSB0
