@@ -69,15 +69,19 @@ enum state {
 	/*
 	 * Device constantly measures the pressure. Pressure is only allowed to
 	 * go down (with a hysteresis). If the pressure goes up, a leak is
-	 * detected and the state transitions to LEAK.
+	 * detected and the state transitions to ALARM.
 	 */
 	PRESSURE_OK,
 
 	/*
 	 * Device detected a leak. If pressure reaches the "normal" value
-	 * window again, the state transisitons to IDLE.
+	 * window again, the state transisitons to IDLE. After 10s, the state
+	 * automatically transition to SILENT_ALARM.
 	 */
-	LEAK,
+	ALARM,
+
+	/* Same as ALARM. */
+	SILENT_ALARM,
 };
 
 /* lowest bit forces update */
@@ -101,6 +105,7 @@ struct context {
 	uint16_t p_alarm;
 	uint8_t vbat;
 	uint8_t state;
+	uint8_t buzzer_off;
 	uint8_t flags;
 };
 
@@ -302,12 +307,19 @@ static void trigger_state_machine(struct context *ctx)
 		if (ctx->p > ctx->p_alarm) {
 			set_led(LED_LEAK);
 			buzzer_toggle();
-			state = LEAK;
+			ctx->buzzer_off = 10 * HZ;
+			state = ALARM;
 		} else if (ctx->p + P_HYST_ALARM < ctx->p_alarm) {
 			ctx->p_alarm = ctx->p + P_HYST_ALARM;
 		}
 		break;
-	case LEAK:
+	case ALARM:
+		if (!(--ctx->buzzer_off)) {
+			buzzer_off();
+			state = SILENT_ALARM;
+		}
+		/* fallthrough */
+	case SILENT_ALARM:
 		if (ctx->p > ctx->p_on_off) {
 			set_led(LED_IDLE);
 			buzzer_off();
