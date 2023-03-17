@@ -21,6 +21,7 @@
 
 #include "twi.h"
 #include "swuart.h"
+#include "buzzer.h"
 #include "sensor.h"
 
 #define DEBUG 1
@@ -30,7 +31,7 @@
  * The watchdog timer period is 250ms, which gives us approximately
  * 4.5 hours (2^16 * 250ms) runtime until the counter overflows.
  **/
-static volatile uint16_t __ticks;
+volatile uint16_t __ticks;
 
 enum state {
 	/*
@@ -97,37 +98,6 @@ static volatile uint8_t __flags;
 #define F_DEBUG (1 << 0)
 #define F_DEMO (1 << 1)
 
-static void buzzer_init(void)
-{
-	/* PWM mode, output active low, prescaler to 8 */
-	TCCR0A = _BV(WGM01) | _BV(WGM00) | _BV(COM0B1);
-	TCCR0B = _BV(WGM02) | _BV(CS01);
-	OCR0A = (F_CPU / 8 / 2000);
-	OCR0B = (F_CPU / 8 / 2000 / 2);
-}
-
-static void buzzer_on(void)
-{
-	TCCR0B |= _BV(CS01);
-	DDRB |= _BV(PB1);
-}
-
-static void buzzer_off(void)
-{
-	TCCR0B &= ~_BV(CS01);
-	DDRB &= ~_BV(PB1);
-}
-
-static void update_buzzer(void)
-{
-	return;
-
-	if (__ticks & 0x2)
-		buzzer_on();
-	else
-		buzzer_off();
-}
-
 /* Update the LEDs, called from ISR. */
 static void update_led(void)
 {
@@ -190,7 +160,6 @@ static void set_led(uint8_t led_state)
 ISR(WDT_vect)
 {
 	__ticks++;
-	update_buzzer();
 	update_led();
 }
 
@@ -326,7 +295,7 @@ static void trigger_state_machine(struct context *ctx)
 	case PRESSURE_OK:
 		if (ctx->p > ctx->p_alarm) {
 			set_led(LED_LEAK);
-			buzzer_on();
+			buzzer_toggle();
 			state = LEAK;
 		} else if (ctx->p + P_HYST_ALARM < ctx->p_alarm) {
 			ctx->p_alarm = ctx->p + P_HYST_ALARM;
