@@ -29,12 +29,15 @@
 
 #define TO_MBAR(p)		((p) / (100 / 4))
 #define MBAR(x)			((uint32_t)(x) * 100 >> 2)
+#define TO_CENTIVOLTS(v)	(110 * 256 / (v))
+#define MILLIVOLTS(v)		((uint32_t)1100 * 256 / (v))
 /* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
 #define P_HYST_ALARM	MBAR(10)
 #define P_HYST_IDLE	MBAR(30)
 #define P_HYST_ON_OFF	MBAR(100)
 
 #define IDLE_TIMEOUT	(60 * HZ)
+#define VBAT_LOW	MILLIVOLTS(2900)
 
 /*
  * ticks will count the time since the last power-down (or start-up).
@@ -96,12 +99,12 @@ struct context {
 	uint16_t p_idle;
 	uint16_t p_on_off;
 	uint16_t p_alarm;
-	uint16_t vbat;
+	uint8_t vbat;
 	uint8_t state;
 	uint8_t flags;
 };
 
-#define FLAGS_BAT_LOW_DETECTED (1 << 1)
+#define FLAGS_BAT_LOW_DETECTED (1 << 0)
 
 static volatile uint8_t __led_state;
 static volatile uint8_t __flags;
@@ -245,7 +248,7 @@ static void print_status(struct context *ctx)
 	uart_puts_P(PSTR(" o"));
 	uart_puts(itoa(TO_MBAR(ctx->p_on_off), buf, 10));
 	uart_puts_P(PSTR(" v"));
-	uart_puts(itoa(110 * 256 / ctx->vbat, buf, 10));
+	uart_puts(itoa(TO_CENTIVOLTS(ctx->vbat), buf, 10));
 	uart_puts_P(PSTR("0\n"));
 }
 
@@ -291,6 +294,8 @@ static void trigger_state_machine(struct context *ctx)
 			set_led(LED_OFF);
 			wdt_power_down_mode();
 			state = POWERED_DOWN;
+		} else if (ctx->flags & FLAGS_BAT_LOW_DETECTED) {
+			set_led(LED_BAT_LOW);
 		}
 		break;
 	case PRESSURE_OK:
@@ -414,6 +419,9 @@ int main(void)
 		ctx.p = driver->read_pressure();
 
 		ctx.vbat = vbat_voltage();
+		/* ctx.vbat will increase with lower voltage */
+		if (ctx.vbat > VBAT_LOW)
+			ctx.flags |= FLAGS_BAT_LOW_DETECTED;
 
 		trigger_state_machine(&ctx);
 
