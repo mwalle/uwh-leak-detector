@@ -395,6 +395,12 @@ int main(void)
 
 	selftest();
 
+	/*
+	 * Clear watchdog flag, so the watchdog ISR won't be called right away
+	 * and the ticks will start at zero.
+	 */
+	WDTCR |= _BV(WDIF);
+
 	__led_state = LED_IDLE;
 	sei();
 
