@@ -19,6 +19,7 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
+#include "config.h"
 #include "twi.h"
 #include "swuart.h"
 #include "buzzer.h"
@@ -215,7 +216,6 @@ static void wdt_init(void)
 	 * program.
 	 */
 	wdt_disable();
-
 	wdt_normal_mode();
 }
 
@@ -237,6 +237,9 @@ static void idle_mode(void)
 static void print_status(struct context *ctx)
 {
 	char buf[8];
+
+	if (!CONFIG_ENABLE_UART)
+		return;
 
 	if (!(__flags & F_DEBUG))
 		return;
@@ -397,7 +400,8 @@ int main(void)
 	led_init();
 	adc_init();
 	buzzer_init();
-	uart_init();
+	if (CONFIG_ENABLE_UART)
+		uart_init();
 
 	if (__flags & F_DEMO)
 		driver = &demo_driver;
