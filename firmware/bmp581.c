@@ -158,13 +158,12 @@ static void bmp581_init(void)
 
 static uint16_t bmp581_read_pressure(void)
 {
-	uint8_t buf[3];
+	uint8_t buf[2];
 
-	buf[0] = REG_PRESS_DATA_XLSB;
-
+	buf[0] = REG_PRESS_DATA_LSB;
 	twi_transfer(BMP581_ADDR, buf, 1, buf, sizeof(buf));
 
-	return (buf[2] << 8 | buf[1]) / (100 / 4);
+	return (buf[1] << 8 | buf[0]) / (100 / 4);
 }
 
 static uint8_t bmp581_read_temp(void)
