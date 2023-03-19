@@ -3,9 +3,8 @@ MCU = attiny45
 PMCU = t45
 CONFIG_ENABLE_UART = y
 
-SOURCES-y = main.c twi.c buzzer.c bmp581.c demo.c
+SOURCES-y = main.c twi.c buzzer.c bmp581.c demo.c lps22hb.c
 SOURCES-$(CONFIG_ENABLE_UART) += swuart.c
-
 
 PROGRAMMER = buspirate
 PORT = /dev/ttyUSB0

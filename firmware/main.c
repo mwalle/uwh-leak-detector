@@ -407,6 +407,8 @@ int main(void)
 		drv = &demo_driver;
 	else if (sensor_is_present(&bmp581_driver))
 		drv = &bmp581_driver;
+	else if (sensor_is_present(&lps22hb_driver))
+		drv = &lps22hb_driver;
 
 	if (!drv)
 		error();

@@ -44,6 +44,7 @@ static inline uint16_t sensor_one_shot(struct sensor_driver *drv)
 }
 
 extern struct sensor_driver bmp581_driver;
+extern struct sensor_driver lps22hb_driver;
 extern struct sensor_driver demo_driver;
 
 #endif /* __SENSOR_H */
