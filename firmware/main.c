@@ -373,7 +373,7 @@ static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 
 int main(void)
 {
-	struct sensor_driver *driver = NULL;
+	struct sensor_driver *drv = NULL;
 	struct context ctx = { 0 };
 
 	if (MCUSR & _BV(PORF))
@@ -404,14 +404,14 @@ int main(void)
 		uart_init();
 
 	if (__flags & F_DEMO)
-		driver = &demo_driver;
-	else if (bmp581_driver.is_present())
-		driver = &bmp581_driver;
+		drv = &demo_driver;
+	else if (sensor_is_present(&bmp581_driver))
+		drv = &bmp581_driver;
 
-	if (!driver)
+	if (!drv)
 		error();
 
-	driver->init();
+	sensor_init(drv);
 
 	/* disable unused blocks */
 	ACSR |= _BV(ACD);
@@ -427,13 +427,13 @@ int main(void)
 	__led_state = LED_IDLE;
 	sei();
 
-	ctx.p = driver->one_shot();
+	ctx.p = sensor_one_shot(drv);
 	ctx.p_idle = ctx.p - P_HYST_IDLE;
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 
 	while (true) {
 		ctx.ticks = get_ticks();
-		ctx.p = driver->read_pressure();
+		ctx.p = sensor_read_pressure(drv);
 
 		ctx.vbat = vbat_voltage();
 		/* ctx.vbat will increase with lower voltage */
@@ -446,7 +446,7 @@ int main(void)
 			print_status(&ctx);
 
 		/* Trigger the pressure measurment while we sleep */
-		driver->start_measurement();
+		sensor_start_measurement(drv);
 
 		/*
 		 * This will either return on a watchdog interrupt, which means

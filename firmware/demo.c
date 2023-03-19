@@ -34,11 +34,6 @@ static void demo_init(void)
 {
 }
 
-static uint16_t demo_one_shot(void)
-{
-	return demo_read_pressure();
-}
-
 static void demo_start_measurement(void)
 {
 }
@@ -46,7 +41,6 @@ static void demo_start_measurement(void)
 struct sensor_driver demo_driver = {
 	.is_present = demo_is_present,
 	.init = demo_init,
-	.one_shot = demo_one_shot,
 	.start_measurement = demo_start_measurement,
 	.read_pressure = demo_read_pressure,
 };

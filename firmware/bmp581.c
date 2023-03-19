@@ -182,13 +182,6 @@ static void bmp581_start_measurement(void)
 	bmp581_write_reg(REG_ODR_CONFIG, ODR_FORCED_MODE);
 }
 
-static uint16_t bmp581_one_shot(void)
-{
-	bmp581_start_measurement();
-	_delay_ms(5);
-	return bmp581_read_pressure();
-}
-
 static bool bmp581_is_present(void)
 {
 	uint8_t buf;
@@ -202,7 +195,6 @@ static bool bmp581_is_present(void)
 struct sensor_driver bmp581_driver = {
 	.is_present = bmp581_is_present,
 	.init = bmp581_init,
-	.one_shot = bmp581_one_shot,
 	.start_measurement = bmp581_start_measurement,
 	.read_pressure = bmp581_read_pressure,
 };
