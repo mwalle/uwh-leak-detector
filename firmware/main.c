@@ -83,19 +83,6 @@ enum state {
 	SILENT_ALARM,
 };
 
-/* lowest bit forces update */
-enum led_state {
-	LED_OFF		= 0x00,
-	LED_IDLE	= 0x01,		/* flashing green */
-	LED_PRESSURE_OK = 0x02,		/* solid green */
-	LED_BAT_LOW	= 0x03,		/* alternating between green and red */
-	LED_ERROR	= 0x04,		/* solid red */
-	LED_LEAK	= 0x05,		/* flashing red */
-};
-
-#define LED_RED PB3
-#define LED_GREEN PB4
-
 struct context {
 	uint16_t ticks;
 	uint16_t p;
@@ -115,54 +102,50 @@ static volatile uint8_t __flags;
 #define F_DEBUG (1 << 0)
 #define F_DEMO (1 << 1)
 
+#define LED_BLINKING	(1 << 0)
+#define LED_ALTERNATING	(1 << 1)
+#define LED_GREEN	(1 << 2)
+#define LED_RED		(1 << 3)
+
+enum led_state {
+	LED_OFF		= 0,
+	LED_PRESSURE_OK = LED_GREEN,			/* solid green */
+	LED_IDLE	= LED_GREEN | LED_BLINKING,	/* flashing green */
+	LED_ERROR	= LED_RED,			/* solid red */
+	LED_LEAK	= LED_RED | LED_BLINKING,	/* flashing red */
+	LED_BAT_LOW	= LED_RED | LED_ALTERNATING,	/* alternating between green and red */
+};
+
 /* Update the LEDs, called from ISR. */
 static void update_led(void)
 {
 	static uint8_t old_led_state = 0;
+	uint8_t set = 0;
 
 	if (__flags & F_DEBUG)
 		return;
 
-	if (!(__led_state & 1) && old_led_state == __led_state)
+	if (!(__led_state & 3) && old_led_state == __led_state)
 		return;
 
-	/* enable or disable output driver to consume power */
-	switch (__led_state) {
-	case LED_OFF:
-		PORTB |= _BV(LED_GREEN);
-		PORTB |= _BV(LED_RED);
-		break;
-	case LED_PRESSURE_OK:
-		PORTB |= _BV(LED_RED);
-		PORTB &= ~_BV(LED_GREEN);
-		break;
-	case LED_ERROR:
-		PORTB |= _BV(LED_GREEN);
-		PORTB &= ~_BV(LED_RED);
-		break;
-	case LED_IDLE:
-		PORTB |= _BV(LED_RED);
-		if (__ticks & 0x3)
-			PORTB |= _BV(LED_GREEN);
-		else
-			PORTB &= ~_BV(LED_GREEN);
-		break;
-	case LED_LEAK:
-		PORTB |= _BV(LED_GREEN);
-		if (__ticks & 0x3)
-			PORTB |= _BV(LED_RED);
-		else
-			PORTB &= ~_BV(LED_RED);
-		break;
-	case LED_BAT_LOW:
-		if (__ticks & 0x2) {
-			PORTB |= _BV(LED_RED);
-			PORTB &= ~_BV(LED_GREEN);
-		} else {
-			PORTB |= _BV(LED_GREEN);
-			PORTB &= ~_BV(LED_RED);
-		}
-	};
+	if (__led_state)
+		TCCR1 = _BV(CS12);
+	else
+		TCCR1 = 0;
+
+	if (__led_state & LED_RED)
+		set = _BV(PB3);
+	if (__led_state & LED_GREEN)
+		set = _BV(PB4);
+	if (__ticks & 3) {
+		if (__led_state & LED_BLINKING)
+			set = 0;
+		if (__led_state & LED_ALTERNATING)
+			set = _BV(PB4);
+	}
+
+	DDRB &= ~(_BV(PB3) | _BV(PB4));
+	DDRB |= set;
 
 	old_led_state = __led_state;
 }
@@ -338,10 +321,15 @@ static void trigger_state_machine(struct context *ctx)
 
 void led_init(void)
 {
-	PORTB |= _BV(PB3);
-	DDRB |= _BV(PB3);
-	PORTB |= _BV(PB4);
-	DDRB |= _BV(PB4);
+	if (__flags & F_DEBUG)
+		return;
+
+	/* 50% duty cycle */
+	OCR1B = F_CPU / 8 / 2000 / 2;
+	OCR1C = F_CPU / 8 / 2000;
+
+	/* PWM mode, enable OC1B and OC1B# outputs, /8 prescaler */
+	GTCCR = _BV(PWM1B) | _BV(COM1B0);
 }
 
 static void selftest(void)
@@ -349,12 +337,16 @@ static void selftest(void)
 	if (__flags & F_DEBUG)
 		return;
 
+	DDRB |= _BV(PB3);
+	DDRB |= _BV(PB4);
 	PORTB &= ~_BV(PB3);
 	_delay_ms(500);
 	PORTB |= _BV(PB3);
 	PORTB &= ~_BV(PB4);
 	_delay_ms(500);
 	PORTB |= _BV(PB4);
+	DDRB &= ~_BV(PB3);
+	DDRB &= ~_BV(PB4);
 	buzzer_on();
 	_delay_ms(200);
 	buzzer_off();
