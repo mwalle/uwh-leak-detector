@@ -392,7 +392,7 @@ int main(void)
 	led_init();
 	adc_init();
 	buzzer_init();
-	if (CONFIG_ENABLE_UART)
+	if (__flags & F_DEBUG && CONFIG_ENABLE_UART)
 		uart_init();
 
 	if (__flags & F_DEMO)
