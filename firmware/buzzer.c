@@ -26,6 +26,9 @@ void buzzer_init(void)
 	TCCR0B = _BV(WGM02) | _BV(CS01);
 	OCR0A = (F_CPU / 8 / 2000);
 	OCR0B = (F_CPU / 8 / 2000 / 2);
+
+	/* enable pull-up resistor */
+	PORTB |= _BV(PB1);
 }
 
 void buzzer_on(void)
