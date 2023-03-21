@@ -166,16 +166,6 @@ static uint16_t bmp581_read_pressure(void)
 	return (buf[1] << 8 | buf[0]) / (100 / 4);
 }
 
-static uint8_t bmp581_read_temp(void)
-{
-	uint8_t buf;
-
-	buf = REG_TEMP_DATA_MSB;
-	twi_transfer(BMP581_ADDR, &buf, 1, &buf, sizeof(buf));
-
-	return buf;
-}
-
 static void bmp581_start_measurement(void)
 {
 	bmp581_write_reg(REG_ODR_CONFIG, ODR_FORCED_MODE);
