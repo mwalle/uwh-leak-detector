@@ -332,16 +332,14 @@ static void selftest(void)
 	if (__flags & F_DEBUG)
 		return;
 
-	DDRB |= _BV(PB3);
+	TCCR1 = _BV(CS12);
+
 	DDRB |= _BV(PB4);
-	PORTB &= ~_BV(PB3);
 	_delay_ms(500);
-	PORTB |= _BV(PB3);
-	PORTB &= ~_BV(PB4);
-	_delay_ms(500);
-	PORTB |= _BV(PB4);
-	DDRB &= ~_BV(PB3);
 	DDRB &= ~_BV(PB4);
+	DDRB |= _BV(PB3);
+	_delay_ms(500);
+	DDRB &= ~_BV(PB3);
 	buzzer_on();
 	_delay_ms(200);
 	buzzer_off();
