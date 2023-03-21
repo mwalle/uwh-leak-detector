@@ -119,16 +119,13 @@ enum led_state {
 /* Update the LEDs, called from ISR. */
 static void update_led(void)
 {
-	static uint8_t old_led_state = 0;
 	uint8_t set = 0;
 
 	if (__flags & F_DEBUG)
 		return;
 
-	if (!(__led_state & 3) && old_led_state == __led_state)
-		return;
-
 	if (__led_state)
+		/* /8 prescaler */
 		TCCR1 = _BV(CS12);
 	else
 		TCCR1 = 0;
@@ -146,8 +143,6 @@ static void update_led(void)
 
 	DDRB &= ~(_BV(PB3) | _BV(PB4));
 	DDRB |= set;
-
-	old_led_state = __led_state;
 }
 
 static void set_led(uint8_t led_state)
