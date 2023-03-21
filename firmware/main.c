@@ -36,7 +36,7 @@
 #define P_HYST_ON_OFF	100
 
 #define IDLE_TIMEOUT	(60 * HZ)
-#define VBAT_LOW	MILLIVOLTS(2900)
+#define VBAT_LOW	MILLIVOLTS(2700)
 
 /*
  * ticks will count the time since the last power-down (or start-up).
