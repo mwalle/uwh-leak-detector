@@ -327,7 +327,15 @@ void led_init(void)
 	GTCCR = _BV(PWM1B) | _BV(COM1B0);
 }
 
-static void selftest(void)
+static void battery_check(struct context *ctx)
+{
+	ctx->vbat = vbat_voltage();
+	/* vbat will increase with lower voltage */
+	if (ctx->vbat > VBAT_LOW)
+		ctx->flags |= FLAGS_BAT_LOW_DETECTED;
+}
+
+static void selftest(struct context *ctx)
 {
 	if (__flags & F_DEBUG)
 		return;
@@ -339,6 +347,7 @@ static void selftest(void)
 	DDRB &= ~_BV(PB4);
 	DDRB |= _BV(PB3);
 	_delay_ms(500);
+	battery_check(ctx);
 	DDRB &= ~_BV(PB3);
 	buzzer_on();
 	_delay_ms(200);
@@ -403,7 +412,7 @@ int main(void)
 	/* disable unused blocks */
 	ACSR |= _BV(ACD);
 
-	selftest();
+	selftest(&ctx);
 
 	/*
 	 * Clear watchdog flag, so the watchdog ISR won't be called right away
@@ -421,11 +430,7 @@ int main(void)
 	while (true) {
 		ctx.ticks = get_ticks();
 		ctx.p = sensor_read_pressure(drv);
-
-		ctx.vbat = vbat_voltage();
-		/* ctx.vbat will increase with lower voltage */
-		if (ctx.vbat > VBAT_LOW)
-			ctx.flags |= FLAGS_BAT_LOW_DETECTED;
+		battery_check(&ctx);
 
 		trigger_state_machine(&ctx);
 
