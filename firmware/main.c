@@ -409,7 +409,7 @@ int main(void)
 	if (CONFIG_ENABLE_UART && flags & F_DEBUG)
 		uart_init();
 
-	if (flags & F_DEMO)
+	if (CONFIG_ENABLE_DEMO && flags & F_DEMO)
 		drv = &demo_driver;
 	else if (CONFIG_ENABLE_BMP581 && sensor_is_present(&bmp581_driver))
 		drv = &bmp581_driver;

@@ -2,10 +2,12 @@ TARGET = leak-detector
 MCU = attiny45
 PMCU = t45
 CONFIG_ENABLE_UART = y
+CONFIG_ENABLE_DEMO = y
 CONFIG_ENABLE_BMP581 = y
 CONFIG_ENABLE_LPS22HB = y
 
-SOURCES-y = main.c twi.c demo.c
+SOURCES-y = main.c twi.c
+SOURCES-$(CONFIG_ENABLE_DEMO) += demo.c
 SOURCES-$(CONFIG_ENABLE_UART) += swuart.c
 SOURCES-$(CONFIG_ENABLE_BMP581) += bmp581.c
 SOURCES-$(CONFIG_ENABLE_LPS22HB) += lps22hb.c
@@ -31,6 +33,11 @@ config.h: Makefile
 		echo "#define CONFIG_ENABLE_UART 1" > config.h; \
 	else \
 		echo "#define CONFIG_ENABLE_UART 0" > config.h; \
+	fi
+	@if [ "$(CONFIG_ENABLE_DEMO)" = "y" ]; then \
+		echo "#define CONFIG_ENABLE_DEMO 1" >> config.h; \
+	else \
+		echo "#define CONFIG_ENABLE_DEMO 0" >> config.h; \
 	fi
 	@if [ "$(CONFIG_ENABLE_BMP581)" = "y" ]; then \
 		echo "#define CONFIG_ENABLE_BMP581 1" >> config.h; \
