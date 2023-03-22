@@ -124,6 +124,27 @@ static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 static uint8_t led_state;
 static uint8_t flags;
 
+ISR(WDT_vect)
+{
+	__ticks++;
+}
+
+uint16_t get_ticks(void)
+{
+	uint16_t _ticks;
+	ATOMIC_BLOCK(ATOMIC_FORCEON) {
+		_ticks = __ticks;
+	}
+	return _ticks;
+}
+
+static void zero_ticks(void)
+{
+	ATOMIC_BLOCK(ATOMIC_FORCEON) {
+		__ticks = 0;
+	}
+}
+
 static void led_tick(void)
 {
 	uint8_t set = 0;
@@ -150,27 +171,6 @@ static void led_tick(void)
 
 	DDRB &= ~(_BV(PB3) | _BV(PB4));
 	DDRB |= set;
-}
-
-ISR(WDT_vect)
-{
-	__ticks++;
-}
-
-uint16_t get_ticks(void)
-{
-	uint16_t _ticks;
-	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		_ticks = __ticks;
-	}
-	return _ticks;
-}
-
-static void zero_ticks(void)
-{
-	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		__ticks = 0;
-	}
 }
 
 static void wdt_power_down_mode()
