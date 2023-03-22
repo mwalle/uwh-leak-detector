@@ -243,8 +243,12 @@ static void print_status(struct context *ctx)
 	uart_puts_P(PSTR(" o"));
 	uart_puts(itoa(ctx->p_on_off, buf, 10));
 	uart_puts_P(PSTR(" v"));
-	uart_puts(itoa(TO_CENTIVOLTS(ctx->vbat), buf, 10));
-	uart_puts_P(PSTR("0\n"));
+	/* The following assumes a valid range of the ctx->vbat */
+	itoa(TO_CENTIVOLTS(ctx->vbat), buf, 10);
+	uart_putc(buf[0]);
+	uart_puts_P(PSTR("."));
+	uart_puts(buf + 1);
+	uart_puts_P(PSTR("\n"));
 }
 
 static void adc_init(void)
