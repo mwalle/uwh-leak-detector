@@ -201,8 +201,10 @@ static void power_down(void)
 	PORTB |= _BV(PB3);
 	PORTB |= _BV(PB4);
 
+	wdt_power_down_mode();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
+	wdt_normal_mode();
 }
 
 static void idle_mode(void)
@@ -271,7 +273,6 @@ static void trigger_state_machine(struct context *ctx)
 		zero_ticks();
 		if (ctx->p < ctx->p_idle) {
 			led_state = LED_IDLE;
-			wdt_normal_mode();
 			state = IDLE;
 		}
 		break;
@@ -282,7 +283,6 @@ static void trigger_state_machine(struct context *ctx)
 			state = PRESSURE_OK;
 		} else if (ctx->ticks >= IDLE_TIMEOUT) {
 			led_state = LED_OFF;
-			wdt_power_down_mode();
 			state = POWERED_DOWN;
 		} else if (flags & F_BAT_LOW_DETECTED) {
 			led_state = LED_BAT_LOW;
