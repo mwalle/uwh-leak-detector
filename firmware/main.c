@@ -22,7 +22,6 @@
 #include "config.h"
 #include "twi.h"
 #include "swuart.h"
-#include "buzzer.h"
 #include "sensor.h"
 
 /* one tick is 250ms */
@@ -34,6 +33,8 @@
 #define P_HYST_ON_OFF	100
 
 #define IDLE_TIMEOUT	(60 * HZ)
+
+#define BUZZER_HZ 2000
 
 #define MILLIVOLTS(v)		((uint32_t)1100 * 256 / (v))
 #define TO_CENTIVOLTS(v)	(110 * 256 / (v))
@@ -171,6 +172,43 @@ static void led_tick(void)
 
 	DDRB &= ~(_BV(PB3) | _BV(PB4));
 	DDRB |= set;
+}
+
+static void buzzer_tick(void)
+{
+	if (state & BUZZER_ON) {
+		TCCR0B |= _BV(CS01);
+		if (__ticks & 0x2)
+			DDRB |= _BV(PB1);
+		else
+			DDRB &= ~_BV(PB1);
+	} else {
+		TCCR0B &= ~_BV(CS01);
+	}
+}
+
+static void buzzer_init(void)
+{
+	/* PWM mode, output active low, prescaler to 8 */
+	TCCR0A = _BV(WGM01) | _BV(WGM00) | _BV(COM0B1);
+	TCCR0B = _BV(WGM02);
+	OCR0A = (F_CPU / 8 / BUZZER_HZ);
+	OCR0B = (F_CPU / 8 / BUZZER_HZ / 2);
+
+	/* enable pull-up resistor */
+	PORTB |= _BV(PB1);
+}
+
+static void buzzer_on(void)
+{
+	DDRB |= _BV(PB1);
+	TCCR0B |= _BV(CS01);
+}
+
+static void buzzer_off(void)
+{
+	TCCR0B &= ~_BV(CS01);
+	DDRB &= ~_BV(PB1);
 }
 
 static void wdt_power_down_mode()

@@ -5,7 +5,7 @@ CONFIG_ENABLE_UART = y
 CONFIG_ENABLE_BMP581 = y
 CONFIG_ENABLE_LPS22HB = y
 
-SOURCES-y = main.c twi.c buzzer.c demo.c
+SOURCES-y = main.c twi.c demo.c
 SOURCES-$(CONFIG_ENABLE_UART) += swuart.c
 SOURCES-$(CONFIG_ENABLE_BMP581) += bmp581.c
 SOURCES-$(CONFIG_ENABLE_LPS22HB) += lps22hb.c
