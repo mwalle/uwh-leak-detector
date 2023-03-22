@@ -440,9 +440,6 @@ int main(void)
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 
 	while (true) {
-		buzzer_tick();
-		led_tick();
-
 		ctx.ticks = get_ticks();
 		ctx.p = sensor_read_pressure(drv);
 
@@ -451,6 +448,9 @@ int main(void)
 			battery_check(&ctx);
 
 		trigger_state_machine(&ctx);
+
+		buzzer_tick();
+		led_tick();
 
 		/* every second */
 		if ((ctx.ticks & 0x3) == 0)
