@@ -164,6 +164,7 @@ ISR(WDT_vect)
 {
 	__ticks++;
 	update_led();
+	__buzzer_tick();
 }
 
 uint16_t get_ticks(void)
@@ -300,7 +301,7 @@ static void trigger_state_machine(struct context *ctx)
 	case PRESSURE_OK:
 		if (ctx->p > ctx->p_alarm) {
 			set_led(LED_LEAK);
-			buzzer_toggle();
+			buzzer_on();
 			ctx->buzzer_off = 10 * HZ;
 			state = ALARM;
 		} else if (ctx->p + P_HYST_ALARM < ctx->p_alarm) {
