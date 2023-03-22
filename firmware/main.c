@@ -158,7 +158,7 @@ ISR(WDT_vect)
 	update_led();
 }
 
-static uint16_t get_ticks(void)
+uint16_t get_ticks(void)
 {
 	uint16_t _ticks;
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
