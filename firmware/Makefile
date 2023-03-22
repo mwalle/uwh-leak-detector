@@ -2,9 +2,13 @@ TARGET = leak-detector
 MCU = attiny45
 PMCU = t45
 CONFIG_ENABLE_UART = y
+CONFIG_ENABLE_BMP581 = y
+CONFIG_ENABLE_LPS22HB = y
 
-SOURCES-y = main.c twi.c buzzer.c bmp581.c demo.c lps22hb.c
+SOURCES-y = main.c twi.c buzzer.c demo.c
 SOURCES-$(CONFIG_ENABLE_UART) += swuart.c
+SOURCES-$(CONFIG_ENABLE_BMP581) += bmp581.c
+SOURCES-$(CONFIG_ENABLE_LPS22HB) += lps22hb.c
 
 PROGRAMMER = buspirate
 PORT = /dev/ttyUSB0
@@ -27,6 +31,16 @@ config.h: Makefile
 		echo "#define CONFIG_ENABLE_UART 1" > config.h; \
 	else \
 		echo "#define CONFIG_ENABLE_UART 0" > config.h; \
+	fi
+	@if [ "$(CONFIG_ENABLE_BMP581)" = "y" ]; then \
+		echo "#define CONFIG_ENABLE_BMP581 1" >> config.h; \
+	else \
+		echo "#define CONFIG_ENABLE_BMP581 0" >> config.h; \
+	fi
+	@if [ "$(CONFIG_ENABLE_LPS22HB)" = "y" ]; then \
+		echo "#define CONFIG_ENABLE_LPS22HB 1" >> config.h; \
+	else \
+		echo "#define CONFIG_ENABLE_LPS22HB 0" >> config.h; \
 	fi
 
 $(TARGET).hex: $(TARGET).elf

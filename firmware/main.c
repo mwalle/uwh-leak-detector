@@ -399,9 +399,9 @@ int main(void)
 
 	if (__flags & F_DEMO)
 		drv = &demo_driver;
-	else if (sensor_is_present(&bmp581_driver))
+	else if (CONFIG_ENABLE_BMP581 && sensor_is_present(&bmp581_driver))
 		drv = &bmp581_driver;
-	else if (sensor_is_present(&lps22hb_driver))
+	else if (CONFIG_ENABLE_LPS22HB && sensor_is_present(&lps22hb_driver))
 		drv = &lps22hb_driver;
 
 	if (!drv)
