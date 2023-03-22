@@ -125,7 +125,7 @@ static volatile uint8_t __led_state;
 static volatile uint8_t __flags;
 
 /* Update the LEDs, called from ISR. */
-static void update_led(void)
+static void __led_update(void)
 {
 	uint8_t set = 0;
 
@@ -163,8 +163,8 @@ static void set_led(uint8_t led_state)
 ISR(WDT_vect)
 {
 	__ticks++;
-	update_led();
 	__buzzer_tick();
+	__led_update();
 }
 
 uint16_t get_ticks(void)
@@ -371,7 +371,7 @@ static void error(void)
 {
 	cli();
 	set_led(LED_ERROR);
-	update_led();
+	__led_update();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
 }
