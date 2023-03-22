@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <avr/io.h>
-#include <util/delay.h>
 
 #include "twi.h"
 
