@@ -40,6 +40,12 @@
 #define TO_CENTIVOLTS(v)	(110 * 256 / (v))
 #define VBAT_LOW	MILLIVOLTS(2700)
 
+#define LED_BLINKING	(1 << 0)
+#define LED_ALTERNATING	(1 << 1)
+#define LED_GREEN	(1 << 2)
+#define LED_RED		(1 << 3)
+#define BUZZER_ON	(1 << 4)
+
 enum state {
 	/*
 	 * Device was woken up by the pressure sensor and is now constantly
@@ -50,7 +56,8 @@ enum state {
 	 * transitioned back to the POWERED_DOWN state. If the safe pressure
 	 * threshold is reached though, the state transition to PRESSURE_OK.
 	 */
-	IDLE,
+	IDLE = LED_GREEN | LED_BLINKING,
+	IDLE_BAT_LOW_DETECTED = LED_RED | LED_ALTERNATING,
 
 	/*
 	 * Device is powered-down, all clocks are turned off. Wake-up source is
@@ -58,24 +65,26 @@ enum state {
 	 * power. If the pressure is below the on-off threshold, the state will
 	 * transition to to IDLE.
 	 */
-	POWERED_DOWN,
+	POWERED_DOWN = 0,
 
 	/*
 	 * Device constantly measures the pressure. Pressure is only allowed to
 	 * go down (with a hysteresis). If the pressure goes up, a leak is
 	 * detected and the state transitions to ALARM.
 	 */
-	PRESSURE_OK,
+	PRESSURE_OK = LED_GREEN,
 
 	/*
 	 * Device detected a leak. If pressure reaches the "normal" value
 	 * window again, the state transisitons to IDLE. After 10s, the state
 	 * automatically transition to SILENT_ALARM.
 	 */
-	ALARM,
+	ALARM = BUZZER_ON | LED_RED | LED_BLINKING,
 
 	/* Same as ALARM. */
-	SILENT_ALARM,
+	SILENT_ALARM = LED_RED | LED_BLINKING,
+
+	ERROR = LED_RED,
 };
 
 struct context {
@@ -85,28 +94,12 @@ struct context {
 	uint16_t p_on_off;
 	uint16_t p_alarm;
 	uint8_t vbat;
-	uint8_t state;
 	uint8_t buzzer_off;
 };
 
 #define F_DEBUG (1 << 0)
 #define F_DEMO (1 << 1)
 #define F_BAT_LOW_DETECTED (1 << 2)
-
-#define LED_BLINKING	(1 << 0)
-#define LED_ALTERNATING	(1 << 1)
-#define LED_GREEN	(1 << 2)
-#define LED_RED		(1 << 3)
-
-enum led_state {
-	LED_OFF		= 0,
-	LED_PRESSURE_OK = LED_GREEN,
-	LED_IDLE	= LED_GREEN | LED_BLINKING,
-	LED_ERROR	= LED_RED,
-	LED_LEAK	= LED_RED | LED_BLINKING,
-	/* alternating between green and red */
-	LED_BAT_LOW	= LED_RED | LED_ALTERNATING,
-};
 
 /*
  * ticks will count the time since the last power-down (or start-up).
@@ -122,7 +115,7 @@ volatile uint16_t __ticks;
  */
 static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 
-static uint8_t led_state;
+static uint8_t state;
 static uint8_t flags;
 
 ISR(WDT_vect)
@@ -153,20 +146,20 @@ static void led_tick(void)
 	if (flags & F_DEBUG)
 		return;
 
-	if (led_state)
+	if (state)
 		/* /8 prescaler */
 		TCCR1 = _BV(CS12);
 	else
 		TCCR1 = 0;
 
-	if (led_state & LED_RED)
+	if (state & LED_RED)
 		set = _BV(PB3);
-	if (led_state & LED_GREEN)
+	if (state & LED_GREEN)
 		set = _BV(PB4);
 	if (__ticks & 3) {
-		if (led_state & LED_BLINKING)
+		if (state & LED_BLINKING)
 			set = 0;
-		if (led_state & LED_ALTERNATING)
+		if (state & LED_ALTERNATING)
 			set = _BV(PB4);
 	}
 
@@ -197,18 +190,6 @@ static void buzzer_init(void)
 
 	/* enable pull-up resistor */
 	PORTB |= _BV(PB1);
-}
-
-static void buzzer_on(void)
-{
-	DDRB |= _BV(PB1);
-	TCCR0B |= _BV(CS01);
-}
-
-static void buzzer_off(void)
-{
-	TCCR0B &= ~_BV(CS01);
-	DDRB &= ~_BV(PB1);
 }
 
 static void wdt_power_down_mode()
@@ -264,7 +245,7 @@ static void print_status(struct context *ctx)
 	uart_puts_P(PSTR("t"));
 	uart_puts(itoa(ctx->ticks, buf, 10));
 	uart_puts_P(PSTR(" s"));
-	uart_puts(itoa(ctx->state, buf, 10));
+	uart_puts(itoa(state, buf, 10));
 	uart_puts_P(PSTR(" f"));
 	uart_puts(itoa(flags, buf, 10));
 	uart_puts_P(PSTR(" p"));
@@ -304,32 +285,26 @@ static uint8_t vbat_voltage(void)
 
 static void trigger_state_machine(struct context *ctx)
 {
-	uint8_t state = ctx->state;
-
-	switch (ctx->state) {
+	switch (state) {
 	case POWERED_DOWN:
 		zero_ticks();
-		if (ctx->p < ctx->p_idle) {
-			led_state = LED_IDLE;
+		if (ctx->p < ctx->p_idle)
 			state = IDLE;
-		}
 		break;
 	case IDLE:
+		if (flags & F_BAT_LOW_DETECTED)
+			state = IDLE_BAT_LOW_DETECTED;
+		/* fallthrough */
+	case IDLE_BAT_LOW_DETECTED:
 		if (ctx->p < ctx->p_on_off) {
 			ctx->p_alarm = ctx->p + P_HYST_ALARM;
-			led_state = LED_PRESSURE_OK;
 			state = PRESSURE_OK;
 		} else if (ctx->ticks >= IDLE_TIMEOUT) {
-			led_state = LED_OFF;
 			state = POWERED_DOWN;
-		} else if (flags & F_BAT_LOW_DETECTED) {
-			led_state = LED_BAT_LOW;
 		}
 		break;
 	case PRESSURE_OK:
 		if (ctx->p > ctx->p_alarm) {
-			led_state = LED_LEAK;
-			buzzer_on();
 			ctx->buzzer_off = 10 * HZ;
 			state = ALARM;
 		} else if (ctx->p + P_HYST_ALARM < ctx->p_alarm) {
@@ -337,22 +312,16 @@ static void trigger_state_machine(struct context *ctx)
 		}
 		break;
 	case ALARM:
-		if (!(--ctx->buzzer_off)) {
-			buzzer_off();
+		if (!(--ctx->buzzer_off))
 			state = SILENT_ALARM;
-		}
 		/* fallthrough */
 	case SILENT_ALARM:
 		if (ctx->p > ctx->p_on_off) {
-			led_state = LED_IDLE;
-			buzzer_off();
 			ctx->p_alarm = 0;
 			state = IDLE;
 		}
 		break;
 	}
-
-	ctx->state = state;
 }
 
 void led_init(void)
@@ -381,6 +350,8 @@ static void selftest(struct context *ctx)
 	if (flags & F_DEBUG)
 		return;
 
+	/* enable timer for LEDs and buzzer */
+	TCCR0B |= _BV(CS01);
 	TCCR1 = _BV(CS12);
 
 	DDRB |= _BV(PB4);
@@ -390,15 +361,17 @@ static void selftest(struct context *ctx)
 	_delay_ms(500);
 	battery_check(ctx);
 	DDRB &= ~_BV(PB3);
-	buzzer_on();
+
+	/* buzzer */
+	DDRB |= _BV(PB1);
 	_delay_ms(200);
-	buzzer_off();
+	DDRB &= ~_BV(PB1);
 }
 
 static void error(void)
 {
 	cli();
-	led_state = LED_ERROR;
+	state = ERROR;
 	led_tick();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
@@ -459,7 +432,7 @@ int main(void)
 	 */
 	WDTCR |= _BV(WDIF);
 
-	led_state = LED_IDLE;
+	state = IDLE;
 	sei();
 
 	ctx.p = sensor_one_shot(drv);
@@ -493,7 +466,7 @@ int main(void)
 		 * mode until ticks has increased, to make sure, the main loop
 		 * is only run once every tick.
 		 */
-		if (ctx.state == POWERED_DOWN)
+		if (state == POWERED_DOWN)
 			power_down();
 		else
 			while (get_ticks() == ctx.ticks)
