@@ -86,7 +86,6 @@ struct context {
 	uint8_t vbat;
 	uint8_t state;
 	uint8_t buzzer_off;
-	uint8_t flags;
 };
 
 #define F_DEBUG (1 << 0)
@@ -236,7 +235,7 @@ static void print_status(struct context *ctx)
 	uart_puts_P(PSTR(" s"));
 	uart_puts(itoa(ctx->state, buf, 10));
 	uart_puts_P(PSTR(" f"));
-	uart_puts(itoa(ctx->flags, buf, 10));
+	uart_puts(itoa(__flags, buf, 10));
 	uart_puts_P(PSTR(" p"));
 	uart_puts(itoa(ctx->p, buf, 10));
 	uart_puts_P(PSTR(" a"));
@@ -290,7 +289,7 @@ static void trigger_state_machine(struct context *ctx)
 			set_led(LED_OFF);
 			wdt_power_down_mode();
 			state = POWERED_DOWN;
-		} else if (ctx->flags & FLAGS_BAT_LOW_DETECTED) {
+		} else if (__flags & F_BAT_LOW_DETECTED) {
 			set_led(LED_BAT_LOW);
 		}
 		break;
@@ -341,7 +340,7 @@ static void battery_check(struct context *ctx)
 	ctx->vbat = vbat_voltage();
 	/* vbat will increase with lower voltage */
 	if (ctx->vbat > VBAT_LOW)
-		ctx->flags |= FLAGS_BAT_LOW_DETECTED;
+		__flags |= F_BAT_LOW_DETECTED;
 }
 
 static void selftest(struct context *ctx)
