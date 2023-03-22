@@ -121,31 +121,30 @@ volatile uint16_t __ticks;
  */
 static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 
-static volatile uint8_t __led_state;
-static volatile uint8_t __flags;
+static uint8_t led_state;
+static uint8_t flags;
 
-/* Update the LEDs, called from ISR. */
-static void __led_update(void)
+static void led_tick(void)
 {
 	uint8_t set = 0;
 
-	if (__flags & F_DEBUG)
+	if (flags & F_DEBUG)
 		return;
 
-	if (__led_state)
+	if (led_state)
 		/* /8 prescaler */
 		TCCR1 = _BV(CS12);
 	else
 		TCCR1 = 0;
 
-	if (__led_state & LED_RED)
+	if (led_state & LED_RED)
 		set = _BV(PB3);
-	if (__led_state & LED_GREEN)
+	if (led_state & LED_GREEN)
 		set = _BV(PB4);
 	if (__ticks & 3) {
-		if (__led_state & LED_BLINKING)
+		if (led_state & LED_BLINKING)
 			set = 0;
-		if (__led_state & LED_ALTERNATING)
+		if (led_state & LED_ALTERNATING)
 			set = _BV(PB4);
 	}
 
@@ -153,18 +152,9 @@ static void __led_update(void)
 	DDRB |= set;
 }
 
-static void set_led(uint8_t led_state)
-{
-	ATOMIC_BLOCK(ATOMIC_FORCEON) {
-		__led_state = led_state;
-	}
-}
-
 ISR(WDT_vect)
 {
 	__ticks++;
-	__buzzer_tick();
-	__led_update();
 }
 
 uint16_t get_ticks(void)
@@ -228,7 +218,7 @@ static void print_status(struct context *ctx)
 	if (!CONFIG_ENABLE_UART)
 		return;
 
-	if (!(__flags & F_DEBUG))
+	if (!(flags & F_DEBUG))
 		return;
 
 	uart_puts_P(PSTR("t"));
@@ -236,7 +226,7 @@ static void print_status(struct context *ctx)
 	uart_puts_P(PSTR(" s"));
 	uart_puts(itoa(ctx->state, buf, 10));
 	uart_puts_P(PSTR(" f"));
-	uart_puts(itoa(__flags, buf, 10));
+	uart_puts(itoa(flags, buf, 10));
 	uart_puts_P(PSTR(" p"));
 	uart_puts(itoa(ctx->p, buf, 10));
 	uart_puts_P(PSTR(" a"));
@@ -280,7 +270,7 @@ static void trigger_state_machine(struct context *ctx)
 	case POWERED_DOWN:
 		zero_ticks();
 		if (ctx->p < ctx->p_idle) {
-			set_led(LED_IDLE);
+			led_state = LED_IDLE;
 			wdt_normal_mode();
 			state = IDLE;
 		}
@@ -288,19 +278,19 @@ static void trigger_state_machine(struct context *ctx)
 	case IDLE:
 		if (ctx->p < ctx->p_on_off) {
 			ctx->p_alarm = ctx->p + P_HYST_ALARM;
-			set_led(LED_PRESSURE_OK);
+			led_state = LED_PRESSURE_OK;
 			state = PRESSURE_OK;
 		} else if (ctx->ticks >= IDLE_TIMEOUT) {
-			set_led(LED_OFF);
+			led_state = LED_OFF;
 			wdt_power_down_mode();
 			state = POWERED_DOWN;
-		} else if (__flags & F_BAT_LOW_DETECTED) {
-			set_led(LED_BAT_LOW);
+		} else if (flags & F_BAT_LOW_DETECTED) {
+			led_state = LED_BAT_LOW;
 		}
 		break;
 	case PRESSURE_OK:
 		if (ctx->p > ctx->p_alarm) {
-			set_led(LED_LEAK);
+			led_state = LED_LEAK;
 			buzzer_on();
 			ctx->buzzer_off = 10 * HZ;
 			state = ALARM;
@@ -316,7 +306,7 @@ static void trigger_state_machine(struct context *ctx)
 		/* fallthrough */
 	case SILENT_ALARM:
 		if (ctx->p > ctx->p_on_off) {
-			set_led(LED_IDLE);
+			led_state = LED_IDLE;
 			buzzer_off();
 			ctx->p_alarm = 0;
 			state = IDLE;
@@ -329,7 +319,7 @@ static void trigger_state_machine(struct context *ctx)
 
 void led_init(void)
 {
-	if (__flags & F_DEBUG)
+	if (flags & F_DEBUG)
 		return;
 
 	/* 50% duty cycle */
@@ -345,12 +335,12 @@ static void battery_check(struct context *ctx)
 	ctx->vbat = vbat_voltage();
 	/* vbat will increase with lower voltage */
 	if (ctx->vbat > VBAT_LOW)
-		__flags |= F_BAT_LOW_DETECTED;
+		flags |= F_BAT_LOW_DETECTED;
 }
 
 static void selftest(struct context *ctx)
 {
-	if (__flags & F_DEBUG)
+	if (flags & F_DEBUG)
 		return;
 
 	TCCR1 = _BV(CS12);
@@ -370,8 +360,8 @@ static void selftest(struct context *ctx)
 static void error(void)
 {
 	cli();
-	set_led(LED_ERROR);
-	__led_update();
+	led_state = LED_ERROR;
+	led_tick();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
 }
@@ -388,13 +378,13 @@ int main(void)
 
 	switch (++rstcnt) {
 	case 3:
-		__flags = F_DEBUG;
+		flags = F_DEBUG;
 		break;
 	case 4:
-		__flags = F_DEMO;
+		flags = F_DEMO;
 		break;
 	case 5:
-		__flags = F_DEMO | F_DEBUG;
+		flags = F_DEMO | F_DEBUG;
 		break;
 	}
 
@@ -405,10 +395,10 @@ int main(void)
 	led_init();
 	adc_init();
 	buzzer_init();
-	if (__flags & F_DEBUG && CONFIG_ENABLE_UART)
+	if (CONFIG_ENABLE_UART && flags & F_DEBUG)
 		uart_init();
 
-	if (__flags & F_DEMO)
+	if (flags & F_DEMO)
 		drv = &demo_driver;
 	else if (CONFIG_ENABLE_BMP581 && sensor_is_present(&bmp581_driver))
 		drv = &bmp581_driver;
@@ -431,7 +421,7 @@ int main(void)
 	 */
 	WDTCR |= _BV(WDIF);
 
-	__led_state = LED_IDLE;
+	led_state = LED_IDLE;
 	sei();
 
 	ctx.p = sensor_one_shot(drv);
@@ -439,6 +429,9 @@ int main(void)
 	ctx.p_on_off = ctx.p - P_HYST_ON_OFF;
 
 	while (true) {
+		buzzer_tick();
+		led_tick();
+
 		ctx.ticks = get_ticks();
 		ctx.p = sensor_read_pressure(drv);
 

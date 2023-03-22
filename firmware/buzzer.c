@@ -12,8 +12,11 @@
 
 #define BUZZER_HZ 2000
 
-void __buzzer_tick(void)
+void buzzer_tick(void)
 {
+	if (!(TCCR0B & _BV(CS01)))
+		return;
+
 	if (__ticks & 0x2)
 		DDRB |= _BV(PB1);
 	else
