@@ -441,10 +441,14 @@ int main(void)
 	while (true) {
 		ctx.ticks = get_ticks();
 		ctx.p = sensor_read_pressure(drv);
-		battery_check(&ctx);
+
+		/* every 8 seconds */
+		if ((ctx.ticks & 0x1f) == 0)
+			battery_check(&ctx);
 
 		trigger_state_machine(&ctx);
 
+		/* every second */
 		if ((ctx.ticks & 0x3) == 0)
 			print_status(&ctx);
 
