@@ -28,22 +28,16 @@
 /* one tick is 250ms */
 #define HZ 4
 
-#define TO_CENTIVOLTS(v)	(110 * 256 / (v))
-#define MILLIVOLTS(v)		((uint32_t)1100 * 256 / (v))
 /* hyst of 10mbar for the alarm limit and 100mbar for turn on limit */
 #define P_HYST_ALARM	10
 #define P_HYST_IDLE	30
 #define P_HYST_ON_OFF	100
 
 #define IDLE_TIMEOUT	(60 * HZ)
-#define VBAT_LOW	MILLIVOLTS(2700)
 
-/*
- * ticks will count the time since the last power-down (or start-up).
- * The watchdog timer period is 250ms, which gives us approximately
- * 4.5 hours (2^16 * 250ms) runtime until the counter overflows.
- **/
-volatile uint16_t __ticks;
+#define MILLIVOLTS(v)		((uint32_t)1100 * 256 / (v))
+#define TO_CENTIVOLTS(v)	(110 * 256 / (v))
+#define VBAT_LOW	MILLIVOLTS(2700)
 
 enum state {
 	/*
@@ -95,12 +89,9 @@ struct context {
 	uint8_t flags;
 };
 
-#define FLAGS_BAT_LOW_DETECTED (1 << 0)
-
-static volatile uint8_t __led_state;
-static volatile uint8_t __flags;
 #define F_DEBUG (1 << 0)
 #define F_DEMO (1 << 1)
+#define F_BAT_LOW_DETECTED (1 << 2)
 
 #define LED_BLINKING	(1 << 0)
 #define LED_ALTERNATING	(1 << 1)
@@ -109,12 +100,30 @@ static volatile uint8_t __flags;
 
 enum led_state {
 	LED_OFF		= 0,
-	LED_PRESSURE_OK = LED_GREEN,			/* solid green */
-	LED_IDLE	= LED_GREEN | LED_BLINKING,	/* flashing green */
-	LED_ERROR	= LED_RED,			/* solid red */
-	LED_LEAK	= LED_RED | LED_BLINKING,	/* flashing red */
-	LED_BAT_LOW	= LED_RED | LED_ALTERNATING,	/* alternating between green and red */
+	LED_PRESSURE_OK = LED_GREEN,
+	LED_IDLE	= LED_GREEN | LED_BLINKING,
+	LED_ERROR	= LED_RED,
+	LED_LEAK	= LED_RED | LED_BLINKING,
+	/* alternating between green and red */
+	LED_BAT_LOW	= LED_RED | LED_ALTERNATING,
 };
+
+/*
+ * ticks will count the time since the last power-down (or start-up).
+ * The watchdog timer period is 250ms, which gives us approximately
+ * 4.5 hours (2^16 * 250ms) runtime until the counter overflows.
+ **/
+volatile uint16_t __ticks;
+
+/*
+ * rstcnt will increase on every external reset, that is on every reset button
+ * press. After ~400ms the counter is reset to zero. rstcnt is also cleared on
+ * a power-on reset. It is used to determine run mode of the leak detector.
+ */
+static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
+
+static volatile uint8_t __led_state;
+static volatile uint8_t __flags;
 
 /* Update the LEDs, called from ISR. */
 static void update_led(void)
@@ -362,8 +371,6 @@ static void error(void)
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
 }
-
-static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 
 int main(void)
 {
