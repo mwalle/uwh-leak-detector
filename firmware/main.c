@@ -106,7 +106,7 @@ struct context {
  * The watchdog timer period is 250ms, which gives us approximately
  * 4.5 hours (2^16 * 250ms) runtime until the counter overflows.
  **/
-volatile uint16_t __ticks;
+static volatile uint16_t __ticks;
 
 /*
  * rstcnt will increase on every external reset, that is on every reset button
@@ -123,7 +123,7 @@ ISR(WDT_vect)
 	__ticks++;
 }
 
-uint16_t get_ticks(void)
+static uint16_t get_ticks(void)
 {
 	uint16_t _ticks;
 	ATOMIC_BLOCK(ATOMIC_FORCEON) {
