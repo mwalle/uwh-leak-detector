@@ -100,6 +100,7 @@ struct context {
 #define F_DEBUG (1 << 0)
 #define F_DEMO (1 << 1)
 #define F_BAT_LOW_DETECTED (1 << 2)
+#define F_POWER_OFF (1 << 3)
 
 /*
  * ticks will count the time since the last power-down (or start-up).
@@ -213,6 +214,24 @@ static void wdt_init(void)
 	 */
 	wdt_disable();
 	wdt_normal_mode();
+}
+
+static void power_off(void)
+{
+	TCCR0B |= _BV(CS01);
+	DDRB |= _BV(PB1);
+	_delay_ms(200);
+	DDRB &= ~_BV(PB1);
+	_delay_ms(100);
+	DDRB |= _BV(PB1);
+	_delay_ms(200);
+	DDRB &= ~_BV(PB1);
+
+	PORTB = 0;
+	DDRB = 0;
+	WDTCR &= ~_BV(WDIE);
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sleep_mode();
 }
 
 static void power_down(void)
@@ -397,6 +416,9 @@ int main(void)
 	case 5:
 		flags = F_DEMO | F_DEBUG;
 		break;
+	case 8:
+		flags = F_POWER_OFF;
+		break;
 	}
 
 	/* give the user some time to reset again */
@@ -420,6 +442,9 @@ int main(void)
 		error();
 
 	sensor_init(drv);
+
+	if (flags & F_POWER_OFF)
+		power_off();
 
 	/* disable unused blocks */
 	ACSR |= _BV(ACD);
