@@ -8,7 +8,7 @@ any leaks.
 The leak detector provides the following features:
 
 - Optical and acoustical alarm. Red and green LED to indicate the current
-  health. Piezo buzzer to get the users attention.
+  health. Piezo buzzer to get the user's attention.
 - Powered by just one CR2032 coin cell.
 - Very long battery life, works down to 1.8V cell voltage.
 - Battery monitoring. Indicates low-battery during idle mode.
@@ -40,9 +40,9 @@ go back to sleep faster. One would need to do power consumption
 measurements to evaluate which is better.
 
 There are basically two different modes:
-- Idle mode. The detector wait for a pressure drop to go into supervisor
+- Idle mode. The detector waits for a pressure drop to go into supervisor
   mode. In this mode, the pressure is polled every two seconds.
-- Supervise mode. The detector monitors the pressure at a faster rate and
+- Supervisor mode. The detector monitors the pressure at a faster rate and
   drives the dual-color LED/buzzer to show the state to the user.
 
 Internally, the firmware consists of a [state
@@ -104,7 +104,7 @@ millibars. It will need division routines which takes up a lot of code
 space.
 
 The LPS22HB is a rather old sensor and consumes more power. It's package
-doesn't have any holes but exposed a silicon area to sense the pressure.
+doesn't have any holes but an exposed silicon area to sense the pressure.
 Therefore, it is not prone to clogging like the BMP581. Also the register
 interface seems to be more thought through. There are also successors of
 the LPS22HB which need less power. Unfortunately, they aren't available at
