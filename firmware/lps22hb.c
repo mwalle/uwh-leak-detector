@@ -121,6 +121,7 @@ static uint16_t lps22hb_read_pressure(void)
 }
 
 struct sensor_driver lps22hb_driver = {
+	.name = "lps22hb",
 	.is_present = lps22hb_is_present,
 	.init = lps22hb_init,
 	.start_measurement = lps22hb_start_measurement,

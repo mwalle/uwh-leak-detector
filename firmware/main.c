@@ -24,6 +24,19 @@
 #include "swuart.h"
 #include "sensor.h"
 
+#define STR(s) _STR(s)
+#define _STR(s) #s
+
+#ifdef VERSION
+#ifdef GIT_HASH
+#define VERSION_STR STR(VERSION) "-g" STR(GIT_HASH)
+#else
+#define VERSION_STR VERSION
+#endif
+#else
+#define VERSION_STR "dev"
+#endif
+
 /* one tick is 250ms */
 #define HZ 4
 
@@ -396,6 +409,19 @@ static void error(void)
 	sleep_mode();
 }
 
+static void print_banner(struct sensor_driver *drv)
+{
+	if (!CONFIG_ENABLE_UART)
+		return;
+
+	if (!(flags & F_DEBUG))
+		return;
+
+	uart_puts_P(PSTR("leak-detector v" VERSION_STR " ("));
+	uart_puts(drv->name);
+	uart_puts_P(PSTR(")\n"));
+}
+
 int main(void)
 {
 	struct sensor_driver *drv = NULL;
@@ -459,6 +485,8 @@ int main(void)
 
 	state = IDLE;
 	sei();
+
+	print_banner(drv);
 
 	ctx.p = sensor_one_shot(drv);
 	ctx.p_idle = ctx.p - P_HYST_IDLE;

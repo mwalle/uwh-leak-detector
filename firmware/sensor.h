@@ -10,6 +10,7 @@
 #include <util/delay.h>
 
 struct sensor_driver {
+	const char *name;
 	bool (*is_present)(void);
 	void (*init)(void);
 	void (*start_measurement)(void);

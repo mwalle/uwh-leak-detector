@@ -1,3 +1,6 @@
+VERSION = 0.1
+GIT_HASH = $(shell git rev-parse --short=8 HEAD)
+
 TARGET = leak-detector
 MCU = attiny45
 PMCU = t45
@@ -18,7 +21,7 @@ BAUD = 115200
 F_CPU = 1000000
 
 OBJECTS = $(SOURCES-y:.c=.o)
-CFLAGS = -g -Os -Werror -Wall -ffunction-sections -DF_CPU=$(F_CPU) $(EXTRA_CFLAGS)
+CFLAGS = -g -Os -Werror -Wall -ffunction-sections -DF_CPU=$(F_CPU) -DVERSION=$(VERSION) -DGIT_HASH=$(GIT_HASH) $(EXTRA_CFLAGS)
 LDFLAGS = -Wl,--gc-sections
 
 all: hex eeprom

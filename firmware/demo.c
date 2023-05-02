@@ -39,6 +39,7 @@ static void demo_start_measurement(void)
 }
 
 struct sensor_driver demo_driver = {
+	.name = "demo",
 	.is_present = demo_is_present,
 	.init = demo_init,
 	.start_measurement = demo_start_measurement,

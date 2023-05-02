@@ -182,6 +182,7 @@ static bool bmp581_is_present(void)
 }
 
 struct sensor_driver bmp581_driver = {
+	.name = "bmp581",
 	.is_present = bmp581_is_present,
 	.init = bmp581_init,
 	.start_measurement = bmp581_start_measurement,
