@@ -21,7 +21,7 @@
 
 #include "config.h"
 #include "twi.h"
-#include "swuart.h"
+#include "uart.h"
 #include "sensor.h"
 
 /* one tick is 250ms */
@@ -61,9 +61,9 @@ enum state {
 
 	/*
 	 * Device is powered-down, all clocks are turned off. Wake-up source is
-	 * the watchdog interrupt. The watchdog interval is set to 2s to consume
-	 * power. If the pressure is below the on-off threshold, the state will
-	 * transition to to IDLE.
+	 * the PIT interrupt. The PIT interval is set to 2s to consume power. If
+	 * the pressure is below the on-off threshold, the state will  transition
+	 * to to IDLE.
 	 */
 	POWERED_DOWN = 0,
 
@@ -104,7 +104,7 @@ struct context {
 
 /*
  * ticks will count the time since the last power-down (or start-up).
- * The watchdog timer period is 250ms, which gives us approximately
+ * The PIT timer period is 250ms, which gives us approximately
  * 4.5 hours (2^16 * 250ms) runtime until the counter overflows.
  **/
 static volatile uint16_t __ticks;
@@ -119,8 +119,9 @@ static volatile uint8_t rstcnt __attribute__ ((section (".noinit")));
 static uint8_t state;
 static uint8_t flags;
 
-ISR(WDT_vect)
+ISR(RTC_PIT_vect)
 {
+	RTC_PITINTFLAGS = RTC_PI_bm;
 	__ticks++;
 }
 
@@ -147,102 +148,93 @@ static void led_tick(void)
 	if (flags & F_DEBUG)
 		return;
 
-	if (state)
-		/* /8 prescaler */
-		TCCR1 = _BV(CS12);
-	else
-		TCCR1 = 0;
-
 	if (state & LED_RED)
-		set = _BV(PB3);
+		set = LED_RED;
 	if (state & LED_GREEN)
-		set = _BV(PB4);
+		set = LED_GREEN;
 	if (__ticks & 3) {
 		if (state & LED_BLINKING)
 			set = 0;
 		if (state & LED_ALTERNATING)
-			set = _BV(PB4);
+			set = LED_GREEN;
 	}
 
-	DDRB &= ~(_BV(PB3) | _BV(PB4));
-	DDRB |= set;
+	if (set & LED_RED)
+		CCL_LUT0CTRLA |= CCL_ENABLE_bm;
+	else
+		CCL_LUT0CTRLA &= ~CCL_ENABLE_bm;
+
+	if (set & LED_GREEN)
+		CCL_LUT1CTRLA |= CCL_ENABLE_bm;
+	else
+		CCL_LUT1CTRLA &= ~CCL_ENABLE_bm;
 }
 
 static void buzzer_tick(void)
 {
-	if (state & BUZZER_ON) {
-		TCCR0B |= _BV(CS01);
-		if (__ticks & 0x2)
-			DDRB |= _BV(PB1);
-		else
-			DDRB &= ~_BV(PB1);
-	} else {
-		TCCR0B &= ~_BV(CS01);
-	}
+	if (state & BUZZER_ON && __ticks & 0x2)
+		PORTA_DIRSET = PIN3_bm;
+	else
+		PORTA_DIRCLR = PIN3_bm;
 }
 
-static void buzzer_init(void)
+static void pwm_init(void)
 {
-	/* PWM mode, output active low, prescaler to 8 */
-	TCCR0A = _BV(WGM01) | _BV(WGM00) | _BV(COM0B1);
-	TCCR0B = _BV(WGM02);
-	OCR0A = (F_CPU / 8 / BUZZER_HZ);
-	OCR0B = (F_CPU / 8 / BUZZER_HZ / 2);
+	/* 50% duty cycle */
+	TCA0_SINGLE_PER = F_CPU / 8 / BUZZER_HZ;
+	TCA0_SINGLE_CMP0 = F_CPU / 8 / BUZZER_HZ / 2;
 
-	/* enable pull-up resistor */
-	PORTB |= _BV(PB1);
+	/* PWM mode, /8 prescaler */
+	TCA0_SINGLE_CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc | TCA_SINGLE_CMP0EN_bm;
+	TCA0_SINGLE_CTRLA = TCA_SINGLE_CLKSEL_DIV8_gc | TCA_SINGLE_ENABLE_bm;
 }
 
-static void wdt_power_down_mode()
+static void pit_power_down_mode()
 {
-	/* set watchdog period to 2s */
-	WDTCR = _BV(WDIE) | _BV(WDP2) | _BV(WDP1) | _BV(WDP0);
+	/* enable interrupt and set period to 2s */
+	RTC_PITCTRLA = RTC_PERIOD_CYC2048_gc | RTC_PITEN_bm;
+	loop_until_bit_is_clear(RTC_PITSTATUS, RTC_CTRLBUSY_bp);
 }
 
-static void wdt_normal_mode()
+static void pit_normal_mode()
 {
 	/* enable interrupt and set period to 250ms */
-	WDTCR = _BV(WDIE) | _BV(WDP2);
+	RTC_PITCTRLA = RTC_PERIOD_CYC256_gc | RTC_PITEN_bm;
+	loop_until_bit_is_clear(RTC_PITSTATUS, RTC_CTRLBUSY_bp);
 }
 
-static void wdt_init(void)
+static void pit_init(void)
 {
-	/*
-	 * Watchdog enable survives an external reset, so disable the watchdog
-	 * first. Just to be sure, in case there was a malfunction in our
-	 * program.
-	 */
-	wdt_disable();
-	wdt_normal_mode();
+	/* use 1.024 kHz RTC clock */
+	RTC_CLKSEL = RTC_CLKSEL_INT1K_gc;
+
+	/* enable PIT interrupt */
+	RTC_PITINTCTRL = RTC_PI_bm;
+
+	pit_normal_mode();
 }
 
 static void power_off(void)
 {
-	TCCR0B |= _BV(CS01);
-	DDRB |= _BV(PB1);
+	PORTA_DIRSET = PIN3_bm;
 	_delay_ms(200);
-	DDRB &= ~_BV(PB1);
+	PORTA_DIRCLR = PIN3_bm;
 	_delay_ms(100);
-	DDRB |= _BV(PB1);
+	PORTA_DIRSET = PIN3_bm;
 	_delay_ms(200);
-	DDRB &= ~_BV(PB1);
+	PORTA_DIRCLR = PIN3_bm;
 
-	PORTB = 0;
-	DDRB = 0;
-	WDTCR &= ~_BV(WDIE);
+	PORTA_DIRCLR = 0xff;
+	RTC_PITCTRLA = 0;
+	cli();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
 }
 
 static void power_down(void)
 {
-	PORTB |= _BV(PB3);
-	PORTB |= _BV(PB4);
-
-	wdt_power_down_mode();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_mode();
-	wdt_normal_mode();
 }
 
 static void idle_mode(void)
@@ -284,22 +276,39 @@ static void print_status(struct context *ctx)
 
 static void adc_init(void)
 {
-	/* Vref = Vcc, input = Vbg */
-	ADMUX = _BV(MUX3) | _BV(MUX2) | _BV(ADLAR);
+	/* internal vref = 1.1V */
+	VREF_CTRLA = VREF_ADC0REFSEL_1V1_gc;
+
+	/* Vref = Vdd, 156.25 kHz clock */
+	ADC0_CTRLC = ADC_REFSEL_VDDREF_gc | ADC_PRESC_DIV32_gc;
+
+	/* input = internal reference */
+	ADC0_MUXPOS = ADC_MUXPOS_INTREF_gc;
+
+	ADC0_CTRLA = ADC_RESSEL_8BIT_gc;
+
 	_delay_ms(1);
-	/* 128 kHz clock */
-	ADCSRA = _BV(ADPS1) | _BV(ADPS0);
 }
 
 static uint8_t vbat_voltage(void)
 {
-	ADCSRA |= _BV(ADEN);
+	ADC0_CTRLA |= ADC_ENABLE_bm;
 	_delay_ms(1);
-	ADCSRA |= _BV(ADSC);
-	loop_until_bit_is_clear(ADCSRA, ADSC);
-	ADCSRA &= ~_BV(ADEN);
+	ADC0_COMMAND = ADC_STCONV_bm;
+	loop_until_bit_is_clear(ADC0_COMMAND, ADC_STCONV_bp);
+	ADC0_CTRLA &= ~ADC_ENABLE_bm;
 
-	return ADCH;
+	return ADC0_RESL;
+}
+
+static void gpio_init(void)
+{
+	PORTA_PIN0CTRL = PORT_ISC_INPUT_DISABLE_gc;
+	PORTA_PIN1CTRL = PORT_ISC_INPUT_DISABLE_gc;
+	PORTA_PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc;
+	PORTA_PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_PULLUPEN_bm;
+	PORTA_PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_PULLUPEN_bm;
+	PORTA_PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc | PORT_PULLUPEN_bm;
 }
 
 static void trigger_state_machine(struct context *ctx)
@@ -307,8 +316,10 @@ static void trigger_state_machine(struct context *ctx)
 	switch (state) {
 	case POWERED_DOWN:
 		zero_ticks();
-		if (ctx->p < ctx->p_idle)
+		if (ctx->p < ctx->p_idle) {
+			pit_normal_mode();
 			state = IDLE;
+		}
 		break;
 	case IDLE:
 		if (flags & F_BAT_LOW_DETECTED)
@@ -319,6 +330,7 @@ static void trigger_state_machine(struct context *ctx)
 			ctx->p_alarm = ctx->p + P_HYST_ALARM;
 			state = PRESSURE_OK;
 		} else if (ctx->ticks >= IDLE_TIMEOUT) {
+			pit_power_down_mode();
 			state = POWERED_DOWN;
 		}
 		break;
@@ -348,12 +360,18 @@ void led_init(void)
 	if (flags & F_DEBUG)
 		return;
 
-	/* 50% duty cycle */
-	OCR1B = F_CPU / 8 / 2000 / 2;
-	OCR1C = F_CPU / 8 / 2000;
+	/*
+	 * Route pins through CCL, because the LEDs aren't connected to the WOn
+	 * of the counter.
+	 */
+	CCL_LUT0CTRLB = CCL_INSEL0_TCA0_gc;
+	CCL_TRUTH0 = 0x01;
+	CCL_LUT0CTRLA = CCL_OUTEN_bm;
 
-	/* PWM mode, enable OC1B and OC1B# outputs, /8 prescaler */
-	GTCCR = _BV(PWM1B) | _BV(COM1B0);
+	CCL_LUT1CTRLB = CCL_INSEL0_TCA0_gc;
+	CCL_TRUTH1 = 0x01;
+	CCL_LUT1CTRLA = CCL_OUTEN_bm;
+	CCL_CTRLA = CCL_ENABLE_bm;
 }
 
 static void battery_check(struct context *ctx)
@@ -369,22 +387,19 @@ static void selftest(struct context *ctx)
 	if (flags & F_DEBUG)
 		return;
 
-	/* enable timer for LEDs and buzzer */
-	TCCR0B |= _BV(CS01);
-	TCCR1 = _BV(CS12);
-
-	DDRB |= _BV(PB4);
+	/* leds */
+	CCL_LUT1CTRLA |= CCL_ENABLE_bm;
 	_delay_ms(500);
-	DDRB &= ~_BV(PB4);
-	DDRB |= _BV(PB3);
+	CCL_LUT1CTRLA &= ~CCL_ENABLE_bm;
+	CCL_LUT0CTRLA |= CCL_ENABLE_bm;
 	_delay_ms(500);
 	battery_check(ctx);
-	DDRB &= ~_BV(PB3);
+	CCL_LUT0CTRLA &= ~CCL_ENABLE_bm;
 
 	/* buzzer */
-	DDRB |= _BV(PB1);
+	PORTA_DIRSET = PIN3_bm;
 	_delay_ms(200);
-	DDRB &= ~_BV(PB1);
+	PORTA_DIRCLR = PIN3_bm;
 }
 
 static void error(void)
@@ -401,10 +416,14 @@ int main(void)
 	struct sensor_driver *drv = NULL;
 	struct context ctx = { 0 };
 
-	if (MCUSR & _BV(PORF))
+	/* 5 MHz system clock */
+	_PROTECTED_WRITE(CLKCTRL_MCLKCTRLB, CLKCTRL_PDIV_4X_gc | CLKCTRL_PEN_bm);
+
+	if (RSTCTRL_RSTFR & RSTCTRL_PORF_bm)
 		rstcnt = 0;
-	MCUSR = 0;
-	wdt_init();
+	RSTCTRL_RSTFR = 0xff;
+
+	pit_init();
 
 	switch (++rstcnt) {
 	case 3:
@@ -425,11 +444,14 @@ int main(void)
 	_delay_ms(400);
 	rstcnt = 0;
 
+	gpio_init();
+	pwm_init();
 	led_init();
 	adc_init();
-	buzzer_init();
 	if (CONFIG_ENABLE_UART && flags & F_DEBUG)
 		uart_init();
+
+	twi_init();
 
 	if (CONFIG_ENABLE_DEMO && flags & F_DEMO)
 		drv = &demo_driver;
@@ -446,16 +468,13 @@ int main(void)
 	if (flags & F_POWER_OFF)
 		power_off();
 
-	/* disable unused blocks */
-	ACSR |= _BV(ACD);
-
 	selftest(&ctx);
 
 	/*
-	 * Clear watchdog flag, so the watchdog ISR won't be called right away
-	 * and the ticks will start at zero.
+	 * Clear PIT flag, so the ISR won't be called right away and the ticks will
+	 * start at zero.
 	 */
-	WDTCR |= _BV(WDIF);
+	RTC_PITINTFLAGS = RTC_PI_bm;
 
 	state = IDLE;
 	sei();
@@ -479,13 +498,13 @@ int main(void)
 
 		/* every second */
 		if ((ctx.ticks & 0x3) == 0)
-			print_status(&ctx);
+		    print_status(&ctx);
 
 		/* Trigger the pressure measurment while we sleep */
 		sensor_start_measurement(drv);
 
 		/*
-		 * This will either return on a watchdog interrupt, which means
+		 * This will either return on a PIT interrupt, which means
 		 * the device slept for 250ms or on any other interrupt, if the
 		 * device is in idle mode. In the latter case, go back to idle
 		 * mode until ticks has increased, to make sure, the main loop

@@ -13,6 +13,7 @@
 
 #define LPS22HB_ADDR 0x5c
 #define LPS22HB_CHIP_ID 0xb1
+#define LPS22HH_CHIP_ID 0xb3
 
 #define REG_INTERRUPT_CFG	0x0b
 #define REG_THS_P_L		0x0f
@@ -101,7 +102,9 @@ static void lps22hb_init(void)
 
 static bool lps22hb_is_present(void)
 {
-	return lps22hb_read_reg(REG_WHO_AM_I) == LPS22HB_CHIP_ID;
+	uint8_t id = lps22hb_read_reg(REG_WHO_AM_I);
+
+	return id == LPS22HB_CHIP_ID || id == LPS22HH_CHIP_ID;
 }
 
 static void lps22hb_start_measurement(void)

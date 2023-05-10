@@ -7,6 +7,7 @@
 #ifndef __TWI_H
 #define __TWI_H
 
+void twi_init(void);
 void twi_transfer(uint8_t addr, uint8_t *wr_data, uint8_t wr_len,
 				  uint8_t *rd_data, uint8_t rd_len);
 

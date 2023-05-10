@@ -1,6 +1,6 @@
 TARGET = leak-detector
-MCU = attiny45
-PMCU = t45
+MCU = attiny412
+PMCU = t412
 CONFIG_ENABLE_UART = y
 CONFIG_ENABLE_DEMO = y
 CONFIG_ENABLE_BMP581 = y
@@ -8,17 +8,17 @@ CONFIG_ENABLE_LPS22HB = y
 
 SOURCES-y = main.c twi.c
 SOURCES-$(CONFIG_ENABLE_DEMO) += demo.c
-SOURCES-$(CONFIG_ENABLE_UART) += swuart.c
+SOURCES-$(CONFIG_ENABLE_UART) += uart.c
 SOURCES-$(CONFIG_ENABLE_BMP581) += bmp581.c
 SOURCES-$(CONFIG_ENABLE_LPS22HB) += lps22hb.c
 
-PROGRAMMER = buspirate
+PROGRAMMER = serialupdi
 PORT = /dev/ttyUSB0
-BAUD = 115200
-F_CPU = 1000000
+BAUD = 230400
+F_CPU = 5000000
 
 OBJECTS = $(SOURCES-y:.c=.o)
-CFLAGS = -g -Os -Werror -Wall -ffunction-sections -DF_CPU=$(F_CPU) $(EXTRA_CFLAGS)
+CFLAGS = -g -Os -Werror -Wno-error=unused-function -Wall -ffunction-sections -DF_CPU=$(F_CPU) $(EXTRA_CFLAGS)
 LDFLAGS = -Wl,--gc-sections
 
 all: hex eeprom
