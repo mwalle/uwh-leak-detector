@@ -89,6 +89,7 @@ enum state {
 
 struct context {
 	uint16_t ticks;
+	uint16_t t;
 	uint16_t p;
 	uint16_t p_idle;
 	uint16_t p_on_off;
@@ -259,6 +260,8 @@ static void print_status(struct context *ctx)
 	uart_puts(itoa(state, buf, 10));
 	uart_puts_P(PSTR(" f"));
 	uart_puts(itoa(flags, buf, 10));
+	uart_puts_P(PSTR(" t"));
+	uart_puts(itoa(ctx->t, buf, 10));
 	uart_puts_P(PSTR(" p"));
 	uart_puts(itoa(ctx->p, buf, 10));
 	uart_puts_P(PSTR(" a"));
@@ -486,6 +489,7 @@ int main(void)
 	while (true) {
 		ctx.ticks = get_ticks();
 		ctx.p = sensor_read_pressure(drv);
+		ctx.t = sensor_read_temperature(drv);
 
 		/* every 8 seconds */
 		if ((ctx.ticks & 0x1f) == 0)

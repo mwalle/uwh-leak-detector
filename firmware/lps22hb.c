@@ -123,9 +123,20 @@ static uint16_t lps22hb_read_pressure(void)
 	return (buf[1] << 4) | (buf[0] >> 4);
 }
 
+static uint16_t lps22hb_read_temperature(void)
+{
+	uint8_t buf[2];
+
+	buf[0] = REG_TEMP_OUT_L;
+	twi_transfer(LPS22HB_ADDR, buf, 1, buf, sizeof(buf));
+
+	return (buf[1] << 8) | buf[0];
+}
+
 struct sensor_driver lps22hb_driver = {
 	.is_present = lps22hb_is_present,
 	.init = lps22hb_init,
 	.start_measurement = lps22hb_start_measurement,
 	.read_pressure = lps22hb_read_pressure,
+	.read_temperature = lps22hb_read_temperature,
 };

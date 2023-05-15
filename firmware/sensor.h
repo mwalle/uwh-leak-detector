@@ -14,6 +14,7 @@ struct sensor_driver {
 	void (*init)(void);
 	void (*start_measurement)(void);
 	uint16_t (*read_pressure)(void);
+	uint16_t (*read_temperature)(void);
 };
 
 static inline bool sensor_is_present(struct sensor_driver *drv)
@@ -34,6 +35,11 @@ static inline void sensor_start_measurement(struct sensor_driver *drv)
 static inline uint16_t sensor_read_pressure(struct sensor_driver *drv)
 {
 	return drv->read_pressure();
+}
+
+static inline uint16_t sensor_read_temperature(struct sensor_driver *drv)
+{
+	return drv->read_temperature();
 }
 
 static inline uint16_t sensor_one_shot(struct sensor_driver *drv)
