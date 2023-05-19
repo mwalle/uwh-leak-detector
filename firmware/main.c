@@ -352,6 +352,7 @@ static void trigger_state_machine(struct context *ctx)
 	case SILENT_ALARM:
 		if (ctx->p > ctx->p_on_off) {
 			ctx->p_alarm = 0;
+			zero_ticks();
 			state = IDLE;
 		}
 		break;
