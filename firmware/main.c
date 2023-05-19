@@ -107,6 +107,17 @@ struct context {
 
 #define REC_SIZE 512
 
+FUSES = {
+    .WDTCFG = FUSE_WDTCFG_DEFAULT,
+    .BODCFG = FUSE_BODCFG_DEFAULT,
+    .OSCCFG = FREQSEL_20MHZ_gc,
+    .TCD0CFG = FUSE_TCD0CFG_DEFAULT,
+    .SYSCFG0 = CRCSRC_NOCRC_gc | RSTPINCFG_RST_gc,
+    .SYSCFG1 = FUSE_SYSCFG1_DEFAULT,
+    .BOOTEND = ((PROGMEM_SIZE - REC_SIZE) / 256),
+    .APPEND = ((PROGMEM_SIZE - REC_SIZE) / 256),
+};
+
 /*
  * ticks will count the time since the last power-down (or start-up).
  * The PIT timer period is 250ms, which gives us approximately

@@ -21,10 +21,9 @@ OBJECTS = $(SOURCES-y:.c=.o)
 CFLAGS = -g -Os -Werror -Wno-error=unused-function -Wall -ffunction-sections -DF_CPU=$(F_CPU) $(EXTRA_CFLAGS)
 LDFLAGS = -Wl,--gc-sections
 
-all: hex eeprom
+all: hex eeprom $(TARGET)_fuses.hex
 
 hex: $(TARGET).hex
-
 eeprom: $(TARGET)_eeprom.hex
 
 config.h: Makefile
@@ -53,6 +52,9 @@ config.h: Makefile
 $(TARGET).hex: $(TARGET).elf
 	avr-objcopy -O ihex -j .data -j .text $(TARGET).elf $(TARGET).hex
 
+$(TARGET)_fuses.hex: $(TARGET).elf
+	avr-objcopy -O ihex -j .fuse --change-section-lma .fuse=0 $(TARGET).elf $(TARGET)_fuses.hex
+
 $(TARGET)_eeprom.hex: $(TARGET).elf
 	avr-objcopy -O ihex -j .eeprom --change-section-lma .eeprom=1 $(TARGET).elf $(TARGET)_eeprom.hex
 
@@ -68,8 +70,9 @@ size: $(TARGET).elf
 program: $(TARGET).hex
 	avrdude -p$(PMCU) -P$(PORT) -B$(BAUD) -c$(PROGRAMMER) -Uflash:w:$(TARGET).hex:a
 
-fuse:
-	avrdude -p$(PMCU) -P$(PORT) -B$(BAUD) -c$(PROGRAMMER) -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
+#fuse:
+fuse: $(TARGET)_fuses.hex
+	avrdude -p$(PMCU) -P$(PORT) -B$(BAUD) -c$(PROGRAMMER) -Ufuses:w:$(TARGET)_fuses.hex:a
 
 clean:
 	rm -f *.o
