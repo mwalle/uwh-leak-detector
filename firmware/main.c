@@ -45,6 +45,7 @@
 #define LED_GREEN	(1 << 2)
 #define LED_RED		(1 << 3)
 #define BUZZER_ON	(1 << 4)
+#define RECORDING	(1 << 7)
 
 enum state {
 	/*
@@ -72,17 +73,17 @@ enum state {
 	 * go down (with a hysteresis). If the pressure goes up, a leak is
 	 * detected and the state transitions to ALARM.
 	 */
-	PRESSURE_OK = LED_GREEN,
+	PRESSURE_OK = LED_GREEN | RECORDING,
 
 	/*
 	 * Device detected a leak. If pressure reaches the "normal" value
 	 * window again, the state transisitons to IDLE. After 10s, the state
 	 * automatically transition to SILENT_ALARM.
 	 */
-	ALARM = BUZZER_ON | LED_RED | LED_BLINKING,
+	ALARM = BUZZER_ON | LED_RED | LED_BLINKING | RECORDING,
 
 	/* Same as ALARM. */
-	SILENT_ALARM = LED_RED | LED_BLINKING,
+	SILENT_ALARM = LED_RED | LED_BLINKING | RECORDING,
 
 	ERROR = LED_RED,
 };
@@ -102,6 +103,9 @@ struct context {
 #define F_DEMO (1 << 1)
 #define F_BAT_LOW_DETECTED (1 << 2)
 #define F_POWER_OFF (1 << 3)
+#define F_RECORD (1 << 4)
+
+#define REC_SIZE 512
 
 /*
  * ticks will count the time since the last power-down (or start-up).
@@ -215,7 +219,7 @@ static void pit_init(void)
 	pit_normal_mode();
 }
 
-static void power_off(void)
+static void beep(void)
 {
 	PORTA_DIRSET = PIN3_bm;
 	_delay_ms(200);
@@ -224,7 +228,10 @@ static void power_off(void)
 	PORTA_DIRSET = PIN3_bm;
 	_delay_ms(200);
 	PORTA_DIRCLR = PIN3_bm;
+}
 
+static void power_off(void)
+{
 	PORTA_DIRCLR = 0xff;
 	RTC_PITCTRLA = 0;
 	cli();
@@ -406,6 +413,59 @@ static void selftest(struct context *ctx)
 	PORTA_DIRCLR = PIN3_bm;
 }
 
+static void records_dump(void)
+{
+	static const uint8_t *ptr = (uint8_t*)(MAPPED_PROGMEM_START + MAPPED_PROGMEM_SIZE - REC_SIZE);
+	uint16_t i;
+	char buf[5];
+
+	if (!CONFIG_ENABLE_UART)
+		return;
+
+	if (!(flags & F_DEBUG))
+		return;
+
+	for (i = 0; i < REC_SIZE; i++) {
+		if (i % 16 == 0) {
+			uart_puts(utoa(i, buf, 16));
+			uart_puts_P(PSTR(": "));
+		}
+		uart_puts(utoa(*(ptr + i), buf, 16));
+		uart_puts_P(PSTR(" "));
+		if (i % 16 == 15)
+			uart_puts_P(PSTR("\n"));
+	}
+}
+
+static void records_erase(void)
+{
+	uint8_t *ptr = (uint8_t*)(MAPPED_PROGMEM_START + MAPPED_PROGMEM_SIZE - REC_SIZE);
+	uint8_t n = REC_SIZE / MAPPED_PROGMEM_PAGE_SIZE;
+
+	while (n--) {
+	    *ptr = 0;
+	    ptr += MAPPED_PROGMEM_PAGE_SIZE;
+	    _PROTECTED_WRITE_SPM(NVMCTRL_CTRLA, NVMCTRL_CMD_PAGEERASE_gc);
+	}
+}
+
+static void records_add(uint16_t p, uint16_t t)
+{
+	static uint8_t *ptr = (uint8_t*)(MAPPED_PROGMEM_START + MAPPED_PROGMEM_SIZE - REC_SIZE);
+	static uint8_t records_left = REC_SIZE / 4;
+
+	if (!records_left)
+		return;
+	records_left--;
+
+	*(ptr++) = p >> 8;
+	*(ptr++) = p & 0xff;
+	*(ptr++) = t >> 8;
+	*(ptr++) = t & 0xff;
+
+	_PROTECTED_WRITE_SPM(NVMCTRL_CTRLA, NVMCTRL_CMD_PAGEWRITE_gc);
+}
+
 static void error(void)
 {
 	cli();
@@ -422,6 +482,7 @@ int main(void)
 
 	/* 5 MHz system clock */
 	_PROTECTED_WRITE(CLKCTRL_MCLKCTRLB, CLKCTRL_PDIV_4X_gc | CLKCTRL_PEN_bm);
+	_PROTECTED_WRITE(CPUINT_CTRLA, CPUINT_IVSEL_bm);
 
 	if (RSTCTRL_RSTFR & RSTCTRL_PORF_bm)
 		rstcnt = 0;
@@ -441,6 +502,9 @@ int main(void)
 		break;
 	case 8:
 		flags = F_POWER_OFF;
+		break;
+	case 10:
+		flags = F_RECORD;
 		break;
 	}
 
@@ -469,10 +533,17 @@ int main(void)
 
 	sensor_init(drv);
 
+	if (flags & (F_POWER_OFF | F_RECORD))
+		beep();
+
 	if (flags & F_POWER_OFF)
 		power_off();
 
 	selftest(&ctx);
+
+	records_dump();
+	if (flags & F_RECORD)
+	    records_erase();
 
 	/*
 	 * Clear PIT flag, so the ISR won't be called right away and the ticks will
@@ -491,6 +562,10 @@ int main(void)
 		ctx.ticks = get_ticks();
 		ctx.p = sensor_read_pressure(drv);
 		ctx.t = sensor_read_temperature(drv);
+
+		/* every 64 seconds */
+		if (flags & F_RECORD && state & RECORDING && (ctx.ticks & 0xff) == 0)
+			records_add(ctx.p, ctx.t);
 
 		/* every 8 seconds */
 		if ((ctx.ticks & 0x1f) == 0)
