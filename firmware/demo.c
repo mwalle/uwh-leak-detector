@@ -25,6 +25,11 @@ static uint16_t demo_read_pressure(void)
 	return ret;
 }
 
+static uint16_t demo_read_temperature(void)
+{
+	return 2500;
+}
+
 static bool demo_is_present(void)
 {
 	return true;
@@ -43,4 +48,5 @@ struct sensor_driver demo_driver = {
 	.init = demo_init,
 	.start_measurement = demo_start_measurement,
 	.read_pressure = demo_read_pressure,
+	.read_temperature = demo_read_temperature,
 };

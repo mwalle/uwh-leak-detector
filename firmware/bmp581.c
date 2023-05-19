@@ -166,6 +166,12 @@ static uint16_t bmp581_read_pressure(void)
 	return (buf[1] << 8 | buf[0]) / (100 / 4);
 }
 
+static uint16_t bmp581_read_temperature(void)
+{
+	/* XXX */
+	return 2500;
+}
+
 static void bmp581_start_measurement(void)
 {
 	bmp581_write_reg(REG_ODR_CONFIG, ODR_FORCED_MODE);
@@ -186,4 +192,5 @@ struct sensor_driver bmp581_driver = {
 	.init = bmp581_init,
 	.start_measurement = bmp581_start_measurement,
 	.read_pressure = bmp581_read_pressure,
+	.read_temperature = bmp581_read_temperature,
 };
